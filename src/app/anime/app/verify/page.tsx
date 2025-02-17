@@ -7,7 +7,7 @@ export default function VerifyPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#1e1e1e]">
       <div className="max-w-md w-full px-6">
         <div className="text-center space-y-6">
-          <h1 className="text-3xl font-semibold text-orange-500">Let's confirm you are human</h1>
+          <h1 className="text-3xl font-semibold text-orange-500">Let&apos;s confirm you are human</h1>
 
           <p className="text-gray-400">
             Complete the security check before continuing. This step verifies that you are not a bot, which helps to

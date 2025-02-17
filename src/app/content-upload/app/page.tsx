@@ -1,4 +1,4 @@
-import ContentUpload from "./components/content-upload"
+import ContentUpload from "../components/content-upload"
 
 export default function Home() {
   return (

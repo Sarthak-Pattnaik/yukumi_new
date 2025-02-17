@@ -4,7 +4,7 @@ import * as React from "react"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
 import { auth, googleProvider, facebookProvider  } from "../firebase";
-import { signInWithPopup, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithPopup, getAuth, AuthError, createUserWithEmailAndPassword } from "firebase/auth";
 
 
 interface FormData {
@@ -174,13 +174,23 @@ export function RegisterForm() {
       toast.success("Registration successful!");
       setFormData({ email: "", password: "", confirmPassword: "" });
     }
-  } catch (error: any) {
-    if (error.code === "auth/email-already-in-use") {
+  } 
+
+catch (error: unknown) {
+  if (error instanceof Error && "code" in error) {
+    const authError = error as AuthError;
+
+    if (authError.code === "auth/email-already-in-use") {
       toast.error("This email is already registered. Please log in.");
     } else {
       toast.error("Something went wrong. Please try again.");
     }
-  } finally {
+  } else {
+    toast.error("An unexpected error occurred.");
+  }
+}
+
+   finally {
     setIsLoading(false);
   }
 }

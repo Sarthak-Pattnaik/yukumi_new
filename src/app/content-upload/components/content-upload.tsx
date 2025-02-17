@@ -5,6 +5,7 @@ import { Button } from "@/components/button"
 import { Input } from "@/components/input"
 import { Label } from "@/components/label"
 import { Switch } from "@/components/switch"
+import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/select"
 import {
   Bold,
@@ -48,7 +49,7 @@ export default function ContentUpload() {
         <div className="mt-2 relative">
           {coverImage ? (
             <div className="relative w-full h-48 rounded-lg overflow-hidden">
-              <img src={coverImage || "/placeholder.svg"} alt="Cover" className="w-full h-full object-cover" />
+              <Image src={coverImage || "/placeholder.svg"} alt="Cover" layout="fill" objectFit="cover" className="w-full h-full" />
               <Button
                 variant="secondary"
                 size="sm"
@@ -162,7 +163,7 @@ export default function ContentUpload() {
       <div className="text-sm text-gray-400">
         Check the{" "}
         <a href="#" className="text-blue-400 hover:underline">
-          "Community Guidelines"
+        &quot;Community Guidelines&quot;
         </a>{" "}
         before posting to maintain community order together.
       </div>

@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     loader: "default",
+    domains: ["hebbkx1anhila5yf.public.blob.vercel-storage.com"],
   },
 };
 

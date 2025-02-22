@@ -15,8 +15,8 @@ export function CommunityNavbar() {
 
   return (
     <div className="fixed top-0 z-50 w-full bg-[#121212] border-b border-zinc-800">
-      <TopNav />
-      <div className="px-4 pb-4">
+            <TopNav /> 
+      <div className="px-4 pb-4 pt-16">
         <div className="relative">
           <Input
             type="search"

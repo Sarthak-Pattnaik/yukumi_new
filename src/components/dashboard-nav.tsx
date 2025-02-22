@@ -3,6 +3,9 @@ import Image from "next/image"
 import type React from "react"
 import { Bell, User } from "lucide-react"
 import { useCarousel } from "@/contexts/carousel-context"
+import { useEffect, useState } from "react";
+import { auth } from "@/app/auth/register-form/firebase";
+import { signOut } from "firebase/auth";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -11,15 +14,25 @@ const NAV_LINKS = [
   { href: "/tracker", label: "Tracker" },
 ]
  
-export function Layout({ children }: { children: React.ReactNode }) {
-  const { logoImage } = useCarousel()
+
+export function DashboardNav({ children }: { children?: React.ReactNode }) {
+  const {logoImage} = useCarousel(); 
+
+  const [user, setUser] = useState<null | object>(null);
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+            setUser(currentUser);
+        });
+        return () => unsubscribe();
+    }, []);
 
   return (
     <div className="min-h-screen bg-[#07081F] overflow-hidden">
       <nav className="flex items-center px-8 py-4 bg-transparent absolute top-0 left-0 right-0 z-50">
         <Link href="/" className="relative w-24 h-8 mr-8">
           <Image
-            src={logoImage || "/placeholder.svg"}
+            src={logoImage}
             alt="YUKUMI"
             width={96}
             height={32}
@@ -40,16 +53,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </div>
         <div className="flex items-center gap-6 ml-auto">
-          <Link href="/notifications" className="text-white hover:text-gray-300 transition-colors">
-            <Bell className="w-5 h-5" />
-          </Link>
-          <Link href="/profile" className="text-white hover:text-gray-300 transition-colors">
-            <User className="w-5 h-5" />
-          </Link>
+        {user ? (
+            // Logged-in view
+            <>
+              <Link href="/notifications" className="text-white hover:text-gray-300 transition-colors">
+                <Bell className="w-5 h-5" />
+              </Link>
+              <Link href="/profile" className="text-white hover:text-gray-300 transition-colors">
+                <User className="w-5 h-5" />
+               </Link>
+              <button onClick={() => signOut(auth)} className="bg-red-500 px-3 py-1 rounded">Logout</button>
+            </>
+          ) : (
+            // Logged-out view
+            <>
+              <Link href="/auth/login-page">Login</Link>
+              <Link href="/auth/register-form">Register</Link>
+            </>
+          )}
         </div>
       </nav>
       {children}
     </div>
   )
-}
+} 
 

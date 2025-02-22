@@ -3,9 +3,9 @@ import { TopNav } from "@/components/top-nav"
 
 export default function Page() {
   return (
-    <>
-  <TopNav />
-  <AnimeTracker />
+  <>
+    <TopNav />
+    <AnimeTracker />
   </>
 )
 }

@@ -78,6 +78,8 @@ export default function Home() {
     setFavorites((prev) => (prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]))
   }
 
+
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-12">
       <TopNav />

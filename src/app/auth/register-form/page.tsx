@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { toast } from "sonner"
 import { auth, googleProvider, facebookProvider  } from "../register-form/firebase";
 import { signInWithPopup, getAuth, AuthError, createUserWithEmailAndPassword } from "firebase/auth";
-
+import { useRouter } from "next/navigation";
 
 interface FormData {
   email: string
@@ -55,6 +55,7 @@ export function RegisterForm() {
     password: "",
     confirmPassword: "",
   })
+  const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -167,12 +168,13 @@ export function RegisterForm() {
     const auth = getAuth(); // Initialize Firebase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
     const user = userCredential.user;
-
+    
     if (user) {
       const idToken = await user.getIdToken();  // Get Firebase ID token
       await sendToXano(user.uid, formData.email, idToken);  // Send details to Xano
       toast.success("Registration successful!");
       setFormData({ email: "", password: "", confirmPassword: "" });
+      router.push("/dashboard");
     }
   } 
 
@@ -418,3 +420,4 @@ function FacebookIcon(props: React.ComponentProps<"svg">) {
   )
 }
 
+export default RegisterForm;

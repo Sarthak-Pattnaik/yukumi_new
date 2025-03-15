@@ -4,7 +4,7 @@ import * as React from "react"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
 import { auth, googleProvider, facebookProvider  } from "../register-form/firebase";
-import { signInWithPopup, getAuth, AuthError, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, UserCredential, getAuth, AuthError, createUserWithEmailAndPassword, getRedirectResult, getAdditionalUserInfo } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
 interface FormData {
@@ -66,63 +66,116 @@ export function RegisterForm() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      const idToken = await user.getIdToken(); // Get the ID Token
-  
-      // Send the token to Xano
-      const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id_token: idToken }),
-      });
-  
-      const data = await response.json();
-      console.log("Response from Xano:", data);
-  
-      toast.success(`Welcome, ${user.displayName}!`);
-    } catch (error) {
-      console.error("Google sign-in failed:", error);
-      toast.error("Google sign-in failed. Try again.");
-    }
-  };
-  
-  
-  const handleFacebookLogin = async () => {
-    try {
-      const result = await signInWithPopup(auth, facebookProvider);
+      // Sign in with Google using a popup
+      const result: UserCredential = await signInWithPopup(auth, googleProvider);
       const user = result.user;
   
-      // Get the ID token from Firebase
-      const idToken = await user.getIdToken();
+      console.log("Firebase authentication successful:", user.uid);
   
-      // Send the ID token to Xano
-      const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id_token: idToken }),
-      });
+      // 🔥 Extract additionalUserInfo properly
+      const additionalUserInfo = getAdditionalUserInfo(result);
+      const id_token = await user.getIdToken();
+      if(additionalUserInfo){
+        const isNewUser = additionalUserInfo.isNewUser;
   
-      const data = await response.json();
+      if (isNewUser) {
+        console.log("New user detected. Creating record in Xano...");
   
-      if (response.ok) {
-        console.log("Response from Xano:", data);
-        toast.success(`Welcome, ${user.displayName}!`);
-      } else {
-        console.error("Error from Xano:", data);
-        toast.error("Login failed. Please try again.");
+        // Create new user in Xano
+        const createResponse = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firebase_uid: user.uid,
+            auth_provider: "google",
+            idToken: id_token
+          }),
+        });
+  
+        if (!createResponse.ok) throw new Error("Failed to create new user in Xano");
+        console.log("New user successfully registered in Xano.");
       }
-    } catch (error) {
-      console.error("Facebook Login Error:", error);
-      toast.error("Facebook sign-in failed. Try again.");
+      } else {
+        console.log("Existing user. Verifying login with Xano...");
+  
+        // Verify existing user in Xano
+        const loginResponse = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: id_token }),
+        });
+  
+        if (!loginResponse.ok) throw new Error("Xano verification failed");
+        console.log("User successfully verified in Xano.");
+      }
+  
+      toast.success("Google login successful!");
+      router.push("/dashboard");
+    } catch (error: any) {
+      console.error("Google Sign-In Error:", error);
+      toast.error(error.message || "Google sign-in failed.");
     }
   };
   
-  const sendToXano = async (firebaseUid: string, email: string, idToken: string) => {
+  
+  const handleFacebookSignIn = async () => {
+    try {
+      // If no user is signed in, initiate Facebook login
+      if (!auth.currentUser) {
+        await signInWithRedirect(auth, facebookProvider);
+        return;
+      }
+  
+      // Handle redirect result after login
+      const result = await getRedirectResult(auth);
+      if (result) {
+        const user = result.user;
+        console.log("Firebase authentication successful:", user.uid);
+  
+        // Check if the user is new
+        const isNewUser = getAdditionalUserInfo(result);
+        const id_token = await user.getIdToken();
+  
+        if (isNewUser) {
+          console.log("New user detected. Creating record in Xano...");
+  
+          // Create new user in Xano
+          const createResponse = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              firebase_uid: user.uid,
+              auth_provider: "facebook",
+              idToken: id_token
+            }),
+          });
+  
+          if (!createResponse.ok) throw new Error("Failed to create new user in Xano");
+          console.log("New user successfully registered in Xano.");
+        } else {
+          console.log("Existing user. Verifying login with Xano...");
+  
+          // Verify existing user in Xano
+          const loginResponse = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken: id_token }),
+          });
+  
+          if (!loginResponse.ok) throw new Error("Xano verification failed");
+          console.log("User successfully verified in Xano.");
+        }
+  
+        toast.success("Facebook login successful!");
+        router.push("/dashboard");
+      }
+    } catch (error: any) {
+      console.error("Facebook Sign-In Error:", error);
+      toast.error(error.message || "Facebook sign-in failed.");
+    }
+  };
+  
+  const sendToXano = async (firebaseUid: string, id_token: string) => {
     try {
       const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/auth/register", {
         method: "POST",
@@ -131,8 +184,9 @@ export function RegisterForm() {
         },
         body: JSON.stringify({
           firebase_uid: firebaseUid,
-          email: email,
-          idToken: idToken
+          auth_provider: "email",
+          // Sending the idToken for verification purposes
+          idToken: id_token
         })
       });
   
@@ -171,7 +225,7 @@ export function RegisterForm() {
     
     if (user) {
       const idToken = await user.getIdToken();  // Get Firebase ID token
-      await sendToXano(user.uid, formData.email, idToken);  // Send details to Xano
+      await sendToXano(user.uid, idToken);  // Send details to Xano
       toast.success("Registration successful!");
       setFormData({ email: "", password: "", confirmPassword: "" });
       router.push("/dashboard");
@@ -296,7 +350,7 @@ catch (error: unknown) {
             />
            <SocialButton
               icon={<FacebookIcon className="h-5 w-5" />}
-              onClick={handleFacebookLogin}
+              onClick={handleFacebookSignIn}
               label="Sign up with Facebook"
               className="bg-[#3B5998]"
             />

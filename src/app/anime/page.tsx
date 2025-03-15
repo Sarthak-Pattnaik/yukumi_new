@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Heart, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -8,77 +8,107 @@ import { TopNav } from "@/components/top-nav"
 
 interface Anime {
   id: number
-  rank: number
+  image_url: string
   title: string
-  image: string
-  episodes: number
-  period: string
-  score: number
-  yourScore: number
-  status: "Completed" | "Currently Watching" | "On-Hold"
   type: string
+  episodes: number
+  aired_from: string
+  aired_to: string
+  genres: string[]
+  avg_score: number
 }
 
-const animeList: Anime[] = [
-  {
-    id: 1,
-    rank: 1,
-    title: "Solo Leveling",
-    image: "/placeholder.svg?height=80&width=60",
-    episodes: 12,
-    period: "Jan 2024 to Mar 2024",
-    score: 10,
-    yourScore: 10,
-    status: "Completed",
-    type: "TV",
-  },
-  {
-    id: 2,
-    rank: 2,
-    title: "Chainsaw Man",
-    image: "/placeholder.svg?height=80&width=60",
-    episodes: 12,
-    period: "Oct 2022 to Dec 2022",
-    score: 10,
-    yourScore: 10,
-    status: "Currently Watching",
-    type: "TV",
-  },
-  {
-    id: 3,
-    rank: 3,
-    title: "Jujutsu Kaisen",
-    image: "/placeholder.svg?height=80&width=60",
-    episodes: 24,
-    period: "Oct 2020 to Mar 2021",
-    score: 10,
-    yourScore: 10,
-    status: "On-Hold",
-    type: "TV",
-  },
-  // Add more anime entries to demonstrate scrolling
-  ...Array.from({ length: 10 }, (_, i) => ({
-    id: i + 4,
-    rank: i + 4,
-    title: `Anime ${i + 4}`,
-    image: "/placeholder.svg?height=80&width=60",
-    episodes: 12,
-    period: "2024",
-    score: 10,
-    yourScore: 10,
-    status: "Completed" as const,
-    type: "TV",
-  })),
-]
+
 
 export default function Home() {
-  const [favorites, setFavorites] = useState<number[]>([])
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [animeList, setAnimeList] = useState<Anime[]>([]); // Full dataset from Xano
+  const [displayedAnime, setDisplayedAnime] = useState<Anime[]>([]); // Paginated data
+  const [userScores, setUserScores] = useState<Record<number, number>>({}); // Stores user's scores
+  const [userStatuses, setUserStatuses] = useState<Record<number, string>>({}); // Stores user's watch status
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Assume auth system is in place
 
   const toggleFavorite = (id: number) => {
-    setFavorites((prev) => (prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]))
-  }
+    setFavorites((prev) => (prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]));
+  };
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return " ";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
 
+  useEffect(() => {
+    const fetchAnime = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/animes1"); // Fetch entire dataset
+        const data = await response.json();
+        console.log("Full Anime Data:", data); // ✅ Debugging
+
+        const sortedData = data.sort((a: Anime, b: Anime) => b.avg_score - a.avg_score);
+        setAnimeList(sortedData);
+        setDisplayedAnime(sortedData.slice(0, 50)); // Load first 50
+      } catch (error) {
+        console.error("Error fetching anime:", error);
+      }
+      setLoading(false);
+    };
+
+    fetchAnime();
+  }, []);
+
+  useEffect(() => {
+    // Fetch user's scores & statuses (Assuming logged-in user data is stored in Xano)
+    const fetchUserData = async () => {
+      if (!isLoggedIn) return;
+      try {
+        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime"); // Replace with actual endpoint
+        const userData = await response.json();
+        
+        const scores: Record<number, number> = {};
+        const statuses: Record<number, string> = {};
+
+        userData.forEach((entry: { anime_id: number; score: number; status: string }) => {
+          scores[entry.anime_id] = entry.score;
+          statuses[entry.anime_id] = entry.status;
+        });
+
+        setUserScores(scores);
+        setUserStatuses(statuses);
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+
+    fetchUserData();
+  }, [isLoggedIn]);
+
+  const updateDisplayedAnime = (newPage: number) => {
+    const startIndex = (newPage - 1) * 50;
+    const nextBatch = animeList.slice(startIndex, startIndex + 50);
+
+    if (nextBatch.length > 0) {
+      setDisplayedAnime(nextBatch);
+      setPage(newPage);
+    }
+  };
+
+  const loadNextPage = () => {
+    if (page * 50 < animeList.length) {
+      updateDisplayedAnime(page + 1);
+    }
+  };
+
+  const loadPreviousPage = () => {
+    if (page > 1) {
+      updateDisplayedAnime(page - 1);
+    }
+  };
+
+  if (loading && displayedAnime.length === 0) return <p>Loading anime...</p>;
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-12">
@@ -94,26 +124,29 @@ export default function Home() {
         <table className="w-full anime-table">
           <thead>
             <tr className="bg-black/20">
-              <th className="p-4 text-left">Rank</th>
-              <th className="p-4 text-left">Anime Title</th>
-              <th className="p-4 text-center">Score</th>
-              <th className="p-4 text-center">Your Score</th>
-              <th className="p-4 text-center">Status</th>
+              <th className="p-4 text-left ">Number</th>
+              <th className="p-4 text-center w-1/">Anime Title</th>
+              <th className="p-4 text-center ">Score</th>
+              <th className="p-4 text-center ">Your Score</th>
+              <th className="p-4 text-center ">Status</th>
             </tr>
           </thead>
           <tbody>
-            {animeList.map((anime) => (
+            {displayedAnime.map((anime) => (
               <tr key={anime.id} className="border-t border-white/10 hover:bg-white/5">
-                <td className="p-4">{anime.rank}</td>
+          
                 <td className="p-4">
                   <div className="flex items-center gap-4">
                     <Image
-                      src={anime.image || "/placeholder.svg"}
+                      src={anime.image_url || "/placeholder.svg"}
                       alt={anime.title}
                       width={60}
                       height={80}
                       className="rounded"
                     />
+                    </div>
+                    </td>
+                    <td className="p-4">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{anime.title}</span>
@@ -124,41 +157,50 @@ export default function Home() {
                       <div className="text-sm text-gray-400">
                         {anime.type} ({anime.episodes} eps)
                       </div>
-                      <div className="text-sm text-gray-400">{anime.period}</div>
+                      <div className="text-sm text-gray-400">
+                          {formatDate(anime.aired_from)} to {anime.aired_to ? formatDate(anime.aired_to) : "Ongoing"}
+                      </div>
                     </div>
-                  </div>
+                  
                 </td>
+                <td><div className="text-m text-white"> {anime.avg_score ? anime.avg_score.toFixed(2) : "-"}</div></td>
                 <td className="p-4">
-                  <div className="flex items-center justify-center gap-1">
-                    <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
-                    <span>{anime.score}</span>
-                  </div>
+                <div className="text-xs text-white flex items-center gap-4">
+                  {isLoggedIn ? (userScores[anime.id] ?? "-") : "-"}<Star />
+                </div>
                 </td>
+
                 <td className="p-4">
-                  <div className="flex items-center justify-center gap-1">
-                    <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
-                    <span>{anime.yourScore}</span>
-                  </div>
+                <div className="text-xs text-white flex items-center gap-4">
+                    {isLoggedIn ? (userStatuses[anime.id] ?? 
+                  <button className="bg-green-500 text-white px-2 py-1 rounded text-xs">
+                    Add to List
+                    </button>) : "-"}
+                </div>
                 </td>
-                <td className="p-4">
-                  <div className="flex justify-center">
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm ${
-                        anime.status === "Completed"
-                          ? "bg-orange-500"
-                          : anime.status === "Currently Watching"
-                            ? "bg-green-500"
-                            : "bg-yellow-500"
-                      }`}
-                    >
-                      {anime.status}
-                    </span>
-                  </div>
-                </td>
+    
+          
               </tr>
             ))}
           </tbody>
         </table>
+        <div className="flex justify-center mt-4 gap-4">
+        <button
+          onClick={loadPreviousPage}
+          disabled={page === 1}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-orange-600 disabled:bg-gray-300"
+        >
+          Previous 50
+        </button>
+
+        <button
+          onClick={loadNextPage}
+          disabled={page * 50 >= animeList.length}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-orange-600 disabled:bg-gray-300"
+        >
+          Next 50
+        </button>
+      </div>
       </div>
     </div>
   )

@@ -30,6 +30,7 @@ export default function LoginPage() {
       const user = userCredential.user;
 
       if (user) {
+        /*
         const idToken = await user.getIdToken();
 
         // Verify user in Xano
@@ -43,8 +44,8 @@ export default function LoginPage() {
 
         const result = await response.json();
         console.log("Xano API Response:", result); // 🔥 Log the response
-        if (!response.ok) throw new Error(result.message || "Xano verification failed");
-
+        if (!response.ok) throw new Error("Xano verification failed");
+        */
         // Success
         toast.success("Login successful!");
         router.push("/dashboard");

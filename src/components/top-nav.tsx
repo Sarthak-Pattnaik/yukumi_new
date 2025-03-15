@@ -64,8 +64,8 @@ export function TopNav() {
           ) : (
             // Logged-out view
             <>
-              <Link href="/login">Login</Link>
-              <Link href="/register">Register</Link>
+              <Link href="/auth/login-page">Login</Link>
+              <Link href="/auth/register-form">Register</Link>
             </>
           )}
       </div>

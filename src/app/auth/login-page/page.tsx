@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { auth, googleProvider, facebookProvider  } from "../register-form/firebase";
 import { getAuth, signInWithEmailAndPassword, UserCredential, signInWithPopup, signInWithRedirect, getRedirectResult, getAdditionalUserInfo } from "firebase/auth";
 import { toast } from "react-hot-toast";
+import { setCookie } from "cookies-next"
 
 function Separator({ className = "" }: { className?: string }) {
   return <div className={`h-[1px] bg-white/20 ${className}`} />;
@@ -66,6 +67,14 @@ export default function LoginPage() {
       }
   
       toast.success("Google login successful!");
+      // Set cookie
+      setCookie("firebase-auth-token", id_token, {
+        maxAge: 60 * 60 * 24, // 1 day
+        path: "/", // Accessible across the site
+        secure: process.env.NODE_ENV === "production", // Use secure in production
+        httpOnly: false, // Set to true if validating on the backend
+        sameSite: "strict", // Prevents CSRF attacks
+      });
       router.push("/dashboard");
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
@@ -136,6 +145,14 @@ export default function LoginPage() {
         }
   
         toast.success("Facebook login successful!");
+        // Set cookie
+        setCookie("firebase-auth-token", id_token, {
+          maxAge: 60 * 60 * 24, // 1 day
+          path: "/", // Accessible across the site
+          secure: process.env.NODE_ENV === "production", // Use secure in production
+          httpOnly: false, // Set to true if validating on the backend
+          sameSite: "strict", // Prevents CSRF attacks
+        });
         router.push("/dashboard");
       }
     } catch (error: any) {
@@ -181,6 +198,15 @@ export default function LoginPage() {
         
         // Success
         toast.success("Login successful!");
+
+        // Set cookie
+        setCookie("firebase-auth-token", id_token, {
+          maxAge: 60 * 60 * 24, // 1 day
+          path: "/", // Accessible across the site
+          secure: process.env.NODE_ENV === "production", // Use secure in production
+          httpOnly: false, // Set to true if validating on the backend
+          sameSite: "strict", // Prevents CSRF attacks
+        });
         router.push("/dashboard");
       }
     } catch (error: any) {

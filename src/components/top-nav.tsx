@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { auth } from "@/app/auth/register-form/firebase";
-import { signOut } from "firebase/auth";
 import Image from "next/image"
 import Link from "next/link"
 import { Bell, User } from "lucide-react"
+import LogoutButton from "./logout";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -59,7 +59,7 @@ export function TopNav() {
               <Link href="/profile" className="text-white hover:text-gray-300 transition-colors">
                 <User className="w-5 h-5" />
                </Link>
-              <button onClick={() => signOut(auth)} className="bg-red-500 px-3 py-1 rounded">Logout</button>
+              <LogoutButton />
             </>
           ) : (
             // Logged-out view

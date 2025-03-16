@@ -5,6 +5,7 @@ import { Heart, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { TopNav } from "@/components/top-nav"
+import Footer from "@/components/footer"
 
 interface Anime {
   id: number
@@ -21,7 +22,6 @@ interface Anime {
 
 
 export default function Home() {
-  const [favorites, setFavorites] = useState<number[]>([]);
   const [animeList, setAnimeList] = useState<Anime[]>([]); // Full dataset from Xano
   const [displayedAnime, setDisplayedAnime] = useState<Anime[]>([]); // Paginated data
   const [userScores, setUserScores] = useState<Record<number, number>>({}); // Stores user's scores
@@ -29,9 +29,22 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false); // Assume auth system is in place
+  const [favorites, setFavorites] = useState<number[]>(() => {
+    if (typeof window !== "undefined") {
+      return JSON.parse(localStorage.getItem("favorites") || "[]");
+    }
+    return [];
+  });
 
   const toggleFavorite = (id: number) => {
-    setFavorites((prev) => (prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]));
+    setFavorites((prev) => {
+      const updatedFavorites = prev.includes(id)
+        ? prev.filter((fid) => fid !== id)
+        : [...prev, id];
+  
+      localStorage.setItem("favorites", JSON.stringify(updatedFavorites)); // ✅ Save to localStorage
+      return updatedFavorites;
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -184,7 +197,8 @@ export default function Home() {
             ))}
           </tbody>
         </table>
-        <div className="flex justify-center mt-4 gap-4">
+      </div>
+      <div className="flex justify-center mt-4 gap-4">
         <button
           onClick={loadPreviousPage}
           disabled={page === 1}
@@ -201,7 +215,7 @@ export default function Home() {
           Next 50
         </button>
       </div>
-      </div>
+      <Footer />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { CarouselProvider, useCarousel } from "@/contexts/carousel-context"
 import Link from "next/link"
 import { auth } from "@/app/auth/register-form/firebase";
 import { ButtonCarousel } from "@/components/button-carousel"
+import Footer from "@/components/footer"
 
 function MainContent() { 
   const carousel = useCarousel(); 
@@ -70,11 +71,14 @@ function MainContent() {
 
 export default function Home() {
   return (
+    <>
     <CarouselProvider>
       <DashboardNav>
         <MainContent />
       </DashboardNav>
     </CarouselProvider>
+    <Footer />
+    </>
   )
 } 
 

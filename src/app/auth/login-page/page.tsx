@@ -287,7 +287,7 @@ export default function LoginPage() {
 
         <div className="text-center mt-8">
           <Link
-            href="/signup"
+            href="/auth/register-form"
             className="inline-block px-8 py-3 rounded-lg bg-gradient-to-r from-purple-900 to-purple-600 text-white font-semibold hover:opacity-90 transition-opacity"
           >
             Sign Up

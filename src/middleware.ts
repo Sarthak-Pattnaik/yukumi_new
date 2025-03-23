@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(req: NextRequest) {
-    const token = req.cookies.get("firebase-auth-token")?.value; // Ensure token value is retrieved
+    const token = req.cookies.get("firebase-auth-token")?.value; // Get the auth token
 
-    if (!token) {
-        // If no token and user is trying to access /tracker, redirect to login
-        if (req.nextUrl.pathname.startsWith("/tracker")) {
-            return NextResponse.redirect(new URL("/auth/login-page", req.url));
-        }
+    // You can set headers or modify requests if needed
+    const requestHeaders = new Headers(req.headers);
+    if (token) {
+        requestHeaders.set("X-User-Authenticated", "true");
+    } else {
+        requestHeaders.set("X-User-Authenticated", "false");
     }
 
-    return NextResponse.next(); // Allow access if token exists
+    return NextResponse.next({
+        headers: requestHeaders,
+    });
 }
 
+// Middleware applies to these routes (optional)
 export const config = {
-    matcher: ["/tracker/:path*"], // Apply to tracker routes
+    matcher: ["/tracker/:path*"], // Middleware still runs on tracker pages
 };

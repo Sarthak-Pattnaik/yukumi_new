@@ -4,8 +4,10 @@ import Footer from "@/components/footer"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation";
 import * as Tooltip from "@radix-ui/react-tooltip"
 import { getAuth, onAuthStateChanged, User, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { useAuth } from "@/contexts/AuthContext";
 
 type AnimeStatus = "ALL ANIME" | "Currently Watching" | "Completed" | "On-Hold" | "Dropped" | "Plan to Watch"
 
@@ -97,10 +99,7 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
 
 
     
-    const auth = getAuth();
-    const [user, setUser] = useState<User | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
     const [userAnime, setUserAnime] = useState<Anime[]>([]); // User's anime
     const [animeDetails, setAnimeDetails] = useState<Record<number, { image_url: string; title: string; type: string }>>({});
     const [animeIds, setAnimeIds] = useState<number[]>([]);
@@ -113,25 +112,19 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
       return [];
     });
     const [favoriteAnimes, setFavoriteAnimes] = useState<AnimeEntry[]>([]);
+    const { user, loading } = useAuth();
+    const router = useRouter();
   
     useEffect(() => {
-      // Set persistence and then listen for auth state changes
-      setPersistence(auth, browserLocalPersistence)
-        .catch((error) => {
-          console.error("Error setting persistence:", error);
-          setError(error.message);
-        })
-        .finally(() => {
-          // Auth state listener should always run, even if setPersistence fails
-          const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-            setUser(firebaseUser);
-            setFirebase_uid(firebaseUser?.uid || null); // ✅ Store UID when user updates
-            setLoading(false);
-          });
-  
-          return () => unsubscribe();
-        });
-    }, []);
+      if (!loading) {
+        if (!user) {
+          router.push("/auth/login-page"); // Redirect if not logged in
+        } else {
+          setFirebase_uid(user.uid); // Update firebase_uid when user is set
+        }
+      }
+    }, [user, loading, router]);
+
     useEffect(() => {
       if (!firebase_uid || !favorites || favorites.length === 0) return; // ⛔ Don't fetch if no favorites
       console.log(favorites)
@@ -246,12 +239,13 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
       };
     
       fetchAnimeDetails();
-    }, [firebase_uid, animeIds]); 
+    }, [firebase_uid, animeIds]);
+    
+    if (loading) return <p>Loading...</p>;
+
   return (
-  <>
-    <div className="mb-10"> {/* Adds space below */}
+    <div className="container mx-auto px-4 py-8 space-y-12">
   <TopNav />
-    </div>
     <div className="w-10"></div> {/* Adds horizontal space */}
     <div className="min-h-screen bg-black text-white p-6">
       {/* Profile Section */}
@@ -406,7 +400,7 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
       </div>
     </div>
     <Footer />
-  </>
+  </div>
 )
 } 
 

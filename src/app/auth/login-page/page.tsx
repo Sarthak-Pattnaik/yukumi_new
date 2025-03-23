@@ -217,6 +217,8 @@ export default function LoginPage() {
     }
   };
 
+  if (loading) return <p>Loading...</p>;
+
   return (
     <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
       {/* Decorative Orbs */}

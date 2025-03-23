@@ -3,8 +3,9 @@ import { UserProfile } from "@/components/user-profile"
 import { ContentSections } from "@/components/content-sections"
 
 export default function Home() {
+  
   return (
-    <div className="min-h-screen bg-black">
+    <div className="container mx-auto px-4 py-8 space-y-12">
       <TopNav />
 
       <main className="container mx-auto px-4 py-8">

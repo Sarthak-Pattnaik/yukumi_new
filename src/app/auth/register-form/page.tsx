@@ -276,7 +276,7 @@ catch (error: unknown) {
   }
 }
 
-  
+if (isLoading) return <p>Loading...</p>;
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-black p-4">

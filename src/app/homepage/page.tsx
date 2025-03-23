@@ -9,7 +9,7 @@ export default function Home() {
       <TopNav />
 
   {/* ✅ Main Layout */}
-  <div className="flex gap-6">
+  <div className="flex gap-6 pt-16">
     {/* Left Sidebar */}
     <div className="w-1/4 hidden lg:block">
       <LeftSidebar />

@@ -42,9 +42,8 @@ export function CommunityNavbar({ onSearch }: { onSearch: (anime: string) => voi
   }
 
   return (
-    <div className="fixed top-0 z-50 w-full bg-[#121212] border-b border-zinc-800">
-      <TopNav />
-      <div className="px-4 pb-4 pt-16">
+    <div className="z-50 w-full bg-[#121212] border-b border-zinc-800">
+      <div className="px-4 pb-4 pt-4">
         <div className="relative">
           <Input
             type="search"

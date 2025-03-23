@@ -2,13 +2,13 @@
 
 import type React from "react"
 import { useRef, useState, useEffect } from "react"
-import { DashboardNav } from "@/components/dashboard-nav"
 import { ImageCarousel } from "@/components/image-carousel"
 import { CarouselProvider, useCarousel } from "@/contexts/carousel-context"
 import Link from "next/link"
 import { auth } from "@/app/auth/register-form/firebase";
 import { ButtonCarousel } from "@/components/button-carousel"
 import Footer from "@/components/footer"
+import { TopNav } from "@/components/top-nav"
 
 function MainContent() { 
   const carousel = useCarousel(); 
@@ -65,7 +65,7 @@ function MainContent() {
   </div>
 </div>
 
-    </main>
+    </main> 
   )
 }
 
@@ -73,9 +73,9 @@ export default function Home() {
   return (
     <>
     <CarouselProvider>
-      <DashboardNav>
+      <TopNav>
         <MainContent />
-      </DashboardNav>
+      </TopNav>
     </CarouselProvider>
     <Footer />
     </>

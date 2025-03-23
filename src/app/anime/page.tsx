@@ -57,9 +57,11 @@ export default function Home() {
     const fetchAnime = async () => {
       setLoading(true);
       try {
-        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/animes1");
+
+        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/animes1"); // Fetch entire dataset
+        const response2 = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimedata/updateAvgScore");
         const data = await response.json();
-        console.log("Full Anime Data:", data);
+
 
         const sortedData = data.sort((a: Anime, b: Anime) => b.avg_score - a.avg_score);
         setAnimeList(sortedData);
@@ -119,6 +121,7 @@ export default function Home() {
     }
   };
 
+
   // Handle search filter
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -133,6 +136,7 @@ export default function Home() {
   }, [searchQuery, animeList]);
 
   if (loading && displayedAnime.length === 0) return <p>Loading anime...</p>;
+
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-12">

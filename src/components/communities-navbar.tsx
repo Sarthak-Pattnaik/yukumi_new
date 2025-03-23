@@ -19,7 +19,7 @@ export function CommunityNavbar({ onSearch }: { onSearch: (anime: string) => voi
       }
 
       try {
-        const response = await fetch(`https://xano.com/api/anime?search=${searchTerm}`)
+        const response = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/animes1/${searchTerm}`)
         const data = await response.json()
         setSearchResults(data.map((anime: { name: string }) => anime.name)) // Assuming API returns anime objects with a "name" field
       } catch (error) {
@@ -42,9 +42,8 @@ export function CommunityNavbar({ onSearch }: { onSearch: (anime: string) => voi
   }
 
   return (
-    <div className="fixed top-0 z-50 w-full bg-[#121212] border-b border-zinc-800">
-      <TopNav />
-      <div className="px-4 pb-4 pt-16">
+    <div className="z-50 w-full bg-[#121212] border-b border-zinc-800">
+      <div className="px-4 pb-4 pt-4">
         <div className="relative">
           <Input
             type="search"

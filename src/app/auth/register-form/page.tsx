@@ -119,8 +119,8 @@ export function RegisterForm() {
         httpOnly: false, // Set to true if validating on the backend
         sameSite: "strict", // Prevents CSRF attacks
     });
-      router.push("/dashboard");
-    } catch (error: any) {
+    router.push(`/profile-setup`);
+  } catch (error: any) {
       console.error("Google Sign-In Error:", error);
       toast.error(error.message || "Google sign-in failed.");
     }
@@ -184,8 +184,8 @@ export function RegisterForm() {
               httpOnly: false, // Set to true if validating on the backend
               sameSite: "strict", // Prevents CSRF attacks
           });
-        router.push("/dashboard");
-      }
+          router.push(`/profile-setup`);
+        }
     } catch (error: any) {
       console.error("Facebook Sign-In Error:", error);
       toast.error(error.message || "Facebook sign-in failed.");
@@ -253,8 +253,8 @@ export function RegisterForm() {
         httpOnly: false, // Set to true if validating on the backend
         sameSite: "strict", // Prevents CSRF attacks
     });
-      router.push("/dashboard");
-    }
+    router.push(`/profile-setup`);
+  }
   } 
 
 catch (error: unknown) {

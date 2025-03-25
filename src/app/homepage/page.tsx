@@ -8,19 +8,31 @@ import { TopNav } from "@/components/top-nav";
 import { FiShare2, FiFlag, FiHeart, FiMessageCircle } from "react-icons/fi"; // Importing icons
 
 export default function Home() {
-  const [posts, setPosts] = useState([]);
+  const [posts, setPosts] = useState<
+    {
+      id: number;
+      user: { profile_pic: string; username: string };
+      image: string;
+      likes: number;
+      likeCount: number;
+      liked: boolean;
+      comments: number;
+      views: number;
+      time_ago?: string;
+    }[]
+  >([]);
 
   useEffect(() => {
     fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts")
       .then((res) => res.json())
       .then((data) =>
-        setPosts(data.map((post) => ({ ...post, liked: false, likeCount: post.likes || 0 })))
+        setPosts(data.map((post: { likes: unknown; }) => ({ ...post, liked: false, likeCount: post.likes || 0 })))
       )
       .catch((err) => console.error("Error fetching posts:", err));
   }, []);
 
   // Handle Like Button Click
-  const toggleLike = (postId) => {
+  const toggleLike = (postId: number) => {
     setPosts((prevPosts) =>
       prevPosts.map((post) =>
         post.id === postId
@@ -36,7 +48,7 @@ export default function Home() {
   };
 
   // Open Profile Pic in Full View
-  const openProfilePic = (profilePic) => {
+  const openProfilePic = (profilePic: string) => {
     window.open(profilePic, "_blank");
   };
 
@@ -55,7 +67,7 @@ export default function Home() {
         <div className="w-full lg:w-1/2 space-y-6">
           {posts.map((post) => (
             <Card key={post.id} className="bg-[#2e2e2e] border-0 p-4 relative">
-              {/* 🚨 Report Button (Now on Top Right) */}
+              {/* 🚨 Report Button (Correctly placed on Top-Right) */}
               <button className="absolute top-4 right-4 bg-black/30 p-2 rounded-full text-white hover:text-red-500">
                 <FiFlag size={20} />
               </button>
@@ -85,6 +97,7 @@ export default function Home() {
 
               {/* Post Actions (Like, Comment, Share, Views) */}
               <div className="flex items-center gap-6 mt-4 text-gray-400">
+                {/* ✅ Like Button */}
                 <button
                   className={`flex items-center gap-1 ${post.liked ? "text-red-500" : "text-gray-400"}`}
                   onClick={() => toggleLike(post.id)}
@@ -93,13 +106,19 @@ export default function Home() {
                   <span>{post.likeCount}</span>
                 </button>
 
+                {/* ✅ Comment Button */}
                 <button className="flex items-center gap-1" onClick={handleCommentClick}>
                   <FiMessageCircle className="cursor-pointer hover:text-blue-400" />
                   <span>{post.comments || 0}</span>
                 </button>
 
-                <FiShare2 className="cursor-pointer hover:text-blue-400" /> {/* Share button */}
-                <p className="text-sm">{post.views || 0} Views</p> {/* Views right of Share */}
+                {/* ✅ Share Button (Now Left of Views) */}
+                <button className="flex items-center gap-1 cursor-pointer hover:text-blue-400">
+                  <FiShare2 />
+                </button>
+
+                {/* ✅ Views (Now Right of Share) */}
+                <p className="text-sm">{post.views || 0} Views</p>
               </div>
             </Card>
           ))}
@@ -113,3 +132,4 @@ export default function Home() {
     </div>
   );
 }
+

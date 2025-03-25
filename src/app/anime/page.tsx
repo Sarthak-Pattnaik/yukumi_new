@@ -178,7 +178,23 @@ export default function Home() {
           </tbody>
         </table>
       </div>
+      <div className="flex justify-center mt-4 gap-4">
+        <button
+          onClick={loadPreviousPage}
+          disabled={page === 1}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-orange-600 disabled:bg-gray-300"
+        >
+          Previous 50
+        </button>
 
+        <button
+          onClick={loadNextPage}
+          disabled={page * 50 >= animeList.length}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-orange-600 disabled:bg-gray-300"
+        >
+          Next 50
+        </button>
+      </div>
       <Footer />
     </div>
   );

@@ -7,6 +7,23 @@ import { Card } from "@/components/ui/card";
 import { TopNav } from "@/components/top-nav";
 import { FiShare2, FiFlag, FiHeart, FiMessageCircle } from "react-icons/fi"; // Importing icons
 
+interface User {
+  profile_pic?: string;
+  username?: string;
+}
+
+interface Post {
+  id: number;
+  user?: User;
+  image?: string;
+  likes?: number;
+  likeCount: number;
+  liked: boolean;
+  comments?: number;
+  views?: number;
+  time_ago?: string;
+}
+
 export default function Home() {
   const [posts, setPosts] = useState<
     {
@@ -22,11 +39,13 @@ export default function Home() {
     }[]
   >([]);
 
+
   useEffect(() => {
     fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts")
       .then((res) => res.json())
       .then((data) =>
         setPosts(data.map((post: { likes: unknown; }) => ({ ...post, liked: false, likeCount: post.likes || 0 })))
+
       )
       .catch((err) => console.error("Error fetching posts:", err));
   }, []);
@@ -48,7 +67,7 @@ export default function Home() {
   };
 
   // Open Profile Pic in Full View
-  const openProfilePic = (profilePic: string) => {
+  const openProfilePic = (profilePic : string) => {
     window.open(profilePic, "_blank");
   };
 

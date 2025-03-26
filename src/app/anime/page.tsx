@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { TopNav } from "@/components/top-nav";
 import Footer from "@/components/footer";
+import Link from "next/link";
 
 interface Anime {
   id: number;
@@ -20,13 +21,13 @@ interface Anime {
 }
 
 export default function Home() {
-  const [animeList, setAnimeList] = useState<Anime[]>([]); // Full dataset
-  const [displayedAnime, setDisplayedAnime] = useState<Anime[]>([]); // Paginated data
-  const [userScores, setUserScores] = useState<Record<number, number>>({}); // User scores
-  const [userStatuses, setUserStatuses] = useState<Record<number, string>>({}); // Watch status
+  const [animeList, setAnimeList] = useState<Anime[]>([]);
+  const [displayedAnime, setDisplayedAnime] = useState<Anime[]>([]);
+  const [userScores, setUserScores] = useState<Record<number, number>>({});
+  const [userStatuses, setUserStatuses] = useState<Record<number, string>>({});
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Assume auth system exists
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [favorites, setFavorites] = useState<number[]>(() => {
     if (typeof window !== "undefined") {
       return JSON.parse(localStorage.getItem("favorites") || "[]");
@@ -47,25 +48,17 @@ export default function Home() {
     });
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return " ";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  };
-
   useEffect(() => {
     const fetchAnime = async () => {
       setLoading(true);
       try {
-
-        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/animes1"); // Fetch entire dataset
+        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/animes1");
         const response2 = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimedata/updateAvgScore");
         const data = await response.json();
 
-
         const sortedData = data.sort((a: Anime, b: Anime) => b.avg_score - a.avg_score);
         setAnimeList(sortedData);
-        setDisplayedAnime(sortedData.slice(0, 50)); // Load first 50
+        setDisplayedAnime(sortedData.slice(0, 50));
       } catch (error) {
         console.error("Error fetching anime:", error);
       }
@@ -100,32 +93,9 @@ export default function Home() {
     fetchUserData();
   }, [isLoggedIn]);
 
-  const updateDisplayedAnime = (newPage: number) => {
-    const startIndex = (newPage - 1) * 50;
-    const nextBatch = animeList.slice(startIndex, startIndex + 50);
-    if (nextBatch.length > 0) {
-      setDisplayedAnime(nextBatch);
-      setPage(newPage);
-    }
-  };
-
-  const loadNextPage = () => {
-    if (page * 50 < animeList.length) {
-      updateDisplayedAnime(page + 1);
-    }
-  };
-
-  const loadPreviousPage = () => {
-    if (page > 1) {
-      updateDisplayedAnime(page - 1);
-    }
-  };
-
-
-  // Handle search filter
   useEffect(() => {
     if (searchQuery.trim() === "") {
-      setDisplayedAnime(animeList.slice(0, 50)); // Reset to paginated list
+      setDisplayedAnime(animeList.slice(0, 50));
       return;
     }
 
@@ -136,7 +106,6 @@ export default function Home() {
   }, [searchQuery, animeList]);
 
   if (loading && displayedAnime.length === 0) return <p>Loading anime...</p>;
-
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-12">
@@ -169,7 +138,7 @@ export default function Home() {
         <table className="w-full anime-table">
           <thead>
             <tr className="bg-black/20">
-              <th className="p-4 text-left ">Number</th>
+              <th className="p-4 text-left">Number</th>
               <th className="p-4 text-center">Anime Title</th>
               <th className="p-4 text-center">Score</th>
               <th className="p-4 text-center">Your Score</th>
@@ -192,7 +161,10 @@ export default function Home() {
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{anime.title}</span>
+                    {/* Clickable Link to Anime Detail Page */}
+                    <Link href={`/anime/${anime.id}`} className="font-medium text-blue-400 hover:underline">
+                      {anime.title}
+                    </Link>
                     <button onClick={() => toggleFavorite(anime.id)} className="text-red-500 hover:text-red-400">
                       <Heart className={`w-4 h-4 ${favorites.includes(anime.id) ? "fill-current" : ""}`} />
                     </button>

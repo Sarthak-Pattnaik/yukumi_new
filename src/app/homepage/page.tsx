@@ -6,70 +6,102 @@ import { RightSidebar } from "@/components/right-sidebar";
 import { Card } from "@/components/ui/card";
 import { TopNav } from "@/components/top-nav";
 import { FiShare2, FiFlag, FiHeart, FiMessageCircle } from "react-icons/fi"; // Importing icons
-
-interface User {
-  profile_pic?: string;
-  username?: string;
-}
+import { useRouter } from "next/navigation";
 
 interface Post {
-  id: number;
-  user?: User;
-  image?: string;
-  likes?: number;
-  likeCount: number;
-  liked: boolean;
-  comments?: number;
-  views?: number;
-  time_ago?: string;
+  id: number
+  created_at: string
+  users_id: number
+  animes1_id: number
+  title: string
+  image_url: string
+  content: string
+  collection: string[]
+  OG_Work: boolean
+  ref_link: string
+  likes: number
+  comment_count: number
+  comment: [string]
+  views: number
+  shares: number
+  liked?: boolean;
+  username?: string;
+  profile_pic?: string;
 }
 
+
 export default function Home() {
-  const [posts, setPosts] = useState<
-    {
-      id: number;
-      user: { profile_pic: string; username: string };
-      image: string;
-      likes: number;
-      likeCount: number;
-      liked: boolean;
-      comments: number;
-      views: number;
-      time_ago?: string;
-    }[]
-  >([]);
+    const [posts, setPosts] = useState<Post[]>([]);
+    const [userId, setUserId] = useState<number | null>(null);
 
-
-  useEffect(() => {
-    fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts")
-      .then((res) => res.json())
-      .then((data) =>
-        setPosts(data.map((post: { likes: unknown; }) => ({ ...post, liked: false, likeCount: post.likes || 0 })))
-
-      )
-      .catch((err) => console.error("Error fetching posts:", err));
-  }, []);
+    useEffect(() => {
+      fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts")
+        .then((res) => res.json())
+        .then(async (data) => {
+          // Fetch user details for each post
+          const postsWithUserData = await Promise.all(
+            data.map(async (post: Post) => {
+              try {
+                const userRes = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${post.users_id}`);
+                const userData = await userRes.json();
+                setUserId(userData.id);
+                return {
+                  ...post,
+                  liked: false, // Default liked state
+                  username: userData.username, // Add username
+                  profile_pic: userData.profile_pic // Add profile picture
+                };
+              } catch (error) {
+                console.error(`Error fetching user data for post ${post.id}:`, error);
+                return { ...post, liked: false, username: "Unknown", profile_pic: "" }; // Fallback values
+              }
+            })
+          );
+    
+          setPosts(postsWithUserData);
+        })
+        .catch((err) => console.error("Error fetching posts:", err));
+    }, []);
+    
 
   // Handle Like Button Click
-  const toggleLike = (postId: number) => {
+  const toggleLike = async(postId: number) => {
     setPosts((prevPosts) =>
       prevPosts.map((post) =>
         post.id === postId
-          ? { ...post, liked: !post.liked, likeCount: post.liked ? post.likeCount - 1 : post.likeCount + 1 }
+          ? { ...post, likes: post.liked ? post.likes - 1 : post.likes + 1, liked: post.liked }
           : post
       )
     );
+    try {
+      await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/update/likes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ posts_id: postId }),
+    });
+      await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/likes`, {
+        method: "POST", // or "PUT" depending on Xano API setup
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ users_id: userId, posts_id: postId, liked: !(posts.find((p) => p.id === postId)?.liked ?? false)
+        }),
+      });
+  
+    } catch (error) {
+      console.error("Error updating like count in Xano:", error);
+    }
   };
+  
 
   // Handle Comment Button Click (Opens alert for now, can be modified for UI input)
-  const handleCommentClick = () => {
-    alert("Open comment section here");
+  const handleCommentClick = (postId: number) => {
+    const router = useRouter();
+    router.push(`/post/${postId}`); // Navigate to the post page with comments
   };
 
-  // Open Profile Pic in Full View
-  const openProfilePic = (profilePic : string) => {
-    window.open(profilePic, "_blank");
-  };
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-12">
@@ -94,21 +126,19 @@ export default function Home() {
               {/* User Info (Profile Picture Clickable) */}
               <div className="flex items-center gap-4">
                 <img
-                  src={post.user?.profile_pic || "/default-avatar.png"} // Fallback image
+                  src={post.profile_pic || "/default-avatar.png"} // Fallback image
                   alt="User"
-                  className="w-10 h-10 rounded-full cursor-pointer"
-                  onClick={() => openProfilePic(post.user?.profile_pic || "/default-avatar.png")}
-                />
+                  className="w-10 h-10 rounded-full cursor-pointer"                />
                 <div>
-                  <p className="text-white font-semibold">{post.user?.username || "Unknown User"}</p>
-                  <p className="text-gray-400 text-sm">{post.time_ago || "Just now"}</p>
+                  <p className="text-white font-semibold">{post.username || "Unknown User"}</p>
+                  <p className="text-gray-400 text-sm">{post.created_at || "Just now"}</p>
                 </div>
               </div>
 
-              {/* Post Image */}
+              {/* Post Image */}  
               <div className="mt-4">
                 <img
-                  src={post.image || "/placeholder.jpg"} // Fallback image
+                  src={post.image_url || "/placeholder.jpg"} // Fallback image
                   alt="Post"
                   className="w-full h-80 object-cover rounded-lg"
                 />
@@ -122,13 +152,13 @@ export default function Home() {
                   onClick={() => toggleLike(post.id)}
                 >
                   <FiHeart className="cursor-pointer hover:text-red-500" />
-                  <span>{post.likeCount}</span>
+                  <span>{post.likes}</span>
                 </button>
 
                 {/* ✅ Comment Button */}
-                <button className="flex items-center gap-1" onClick={handleCommentClick}>
+                <button className="flex items-center gap-1" onClick={() => handleCommentClick(post.id)}>
                   <FiMessageCircle className="cursor-pointer hover:text-blue-400" />
-                  <span>{post.comments || 0}</span>
+                  <span>{post.comment_count || 0}</span>
                 </button>
 
                 {/* ✅ Share Button (Now Left of Views) */}

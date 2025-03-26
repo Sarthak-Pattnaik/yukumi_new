@@ -105,6 +105,20 @@ export default function Home() {
     setDisplayedAnime(filteredAnime);
   }, [searchQuery, animeList]);
 
+  const loadNextPage = () => {
+    if (page * 50 < animeList.length) {
+      setDisplayedAnime(animeList.slice(page * 50, (page + 1) * 50));
+      setPage(page + 1);
+    }
+  };
+
+  const loadPreviousPage = () => {
+    if (page > 1) {
+      setDisplayedAnime(animeList.slice((page - 2) * 50, (page - 1) * 50));
+      setPage(page - 1);
+    }
+  };
+
   if (loading && displayedAnime.length === 0) return <p>Loading anime...</p>;
 
   return (

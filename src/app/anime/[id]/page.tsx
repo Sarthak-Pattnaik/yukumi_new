@@ -63,42 +63,78 @@ export default function AnimeDetail() {
 
   const handleStatusChange = async (newStatus: string) => {
     const animeIdInt = parseInt(id, 10); // Convert anime ID to integer
-
+  
     if (isNaN(userIdInt) || isNaN(animeIdInt)) {
       console.error("Invalid user_id or animes1_id. Must be an integer.");
       return;
     }
-
-    if (watchlistStatus === newStatus) {
-      setWatchlistStatus(null);
-    } else {
-      setWatchlistStatus(newStatus);
-
-      try {
-        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            user_id: userIdInt, // Now ensured as an integer
-            animes1_id: animeIdInt, // Now ensured as an integer
-            status: newStatus,
-            progress: 0,
-            score: 1, // Default score
-          }),
-        });
-
-        if (!response.ok) {
+  
+    try {
+      // Step 1: Check if the anime is already in the watchlist
+      const checkResponse = await fetch(
+        `https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime?user_id=${userIdInt}&animes1_id=${animeIdInt}`
+      );
+  
+      if (!checkResponse.ok) {
+        throw new Error("Failed to fetch watchlist data");
+      }
+  
+      const watchlistData = await checkResponse.json();
+  
+      if (watchlistData.length > 0) {
+        // Step 2: If exists, update using PATCH
+        const existingEntry = watchlistData[0]; // Assuming the first entry is the correct one
+        const userAnimeId = existingEntry.id; // Get the `user_anime_id`
+  
+        const patchResponse = await fetch(
+          `https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime/${userAnimeId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: newStatus,
+              progress: existingEntry.progress, // Keep existing progress
+              score: existingEntry.score, // Keep existing score
+            }),
+          }
+        );
+  
+        if (!patchResponse.ok) {
           throw new Error("Failed to update watchlist");
         }
-
+  
         console.log("Successfully updated watchlist in Xano");
-      } catch (error) {
-        console.error("Error updating watchlist:", error);
+      } else {
+        // Step 3: If not found, create a new entry using POST
+        const postResponse = await fetch(
+          "https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: userIdInt,
+              animes1_id: animeIdInt,
+              status: newStatus,
+              progress: 0,
+              score: 1, // Default score
+            }),
+          }
+        );
+  
+        if (!postResponse.ok) {
+          throw new Error("Failed to add to watchlist");
+        }
+  
+        console.log("Successfully added to watchlist in Xano");
       }
+  
+      // Update UI state
+      setWatchlistStatus(newStatus);
+    } catch (error) {
+      console.error("Error updating watchlist:", error);
     }
   };
+  
 
   if (loading) return <p className="text-center text-gray-300">Loading anime details...</p>;
   if (error) return <p className="text-center text-red-500">{error}</p>;

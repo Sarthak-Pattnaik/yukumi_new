@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 
 type AnimeStatus = "ALL ANIME" | "Currently Watching" | "Completed" | "On-Hold" | "Dropped" | "Plan to Watch"
 
-interface Anime{
+interface Anime{ 
   id: number
   user_id: number
   animes1_id: number
@@ -205,7 +205,10 @@ const { data: favoriteAnimeList, error: queryError, isLoading } = useQuery({
   queryKey: ["favoriteAnimes", debouncedUserData?.favourites ?? []], 
   queryFn: () => debouncedUserData ? fetchAnimeDetails(debouncedUserData) : [],
   enabled: !!debouncedUserData?.favourites?.length,
-  staleTime: 1000 * 60 * 5,
+  staleTime: 1000 * 60 * 10,
+  gcTime: 1000 * 60 * 30,
+  retry: 3, // ✅ Retry up to 3 times
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
 });
 
 useEffect(() => {
@@ -264,8 +267,10 @@ const { data: userAnimeData, error: queryError2, isLoading: queryLoading } = use
     return fetchUserAnimeData(firebase_uid);
   },
   enabled: !!firebase_uid,
-  staleTime: 1000 * 60 * 5,
-  gcTime: 1000 * 60 * 10  // cacheTime was renamed to gcTime in v4
+  staleTime: 1000 * 60 * 10,
+  gcTime: 1000 * 60 * 30, // cacheTime was renamed to gcTime in v4
+  retry: 3, // ✅ Retry up to 3 times
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
 });
 
 // Handle success with useEffect instead

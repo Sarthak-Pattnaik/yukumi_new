@@ -7,7 +7,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TopNav } from "@/components/top-nav";
 import Footer from "@/components/footer";
-import { ListPlus, Pause, X, Check, ChevronDown } from "lucide-react";
+import { ListPlus, Pause, X, Play, Calendar, Check, ChevronDown } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+
 
 interface Anime {
   id: number;
@@ -22,17 +24,53 @@ interface Anime {
   synopsis: string;
 }
 
+interface AnimeEntry{
+  id: number
+  created_at: string
+  user_id: number
+  animes1_id: number
+  status: string
+  progress: number
+  score: number
+}
+
+interface UserEntry {
+  id: number
+  created_at: string
+  firebase_uid: string
+  username: string
+  picture_url: string
+  auth_provider: string
+  display_name: string
+  gender: string
+  country: string
+  age: number
+  favourites: number[]
+}
+
 export default function AnimeDetail() {
   const params = useParams();
-  const id = params?.id as string;
+  const id = params?.id ? Number(params.id) : 1; // or a default value
 
-  const userId = 1234; // Replace this with the actual logged-in user ID (INTEGER)
-  const userIdInt = parseInt(userId.toString(), 10); // Ensure it's treated as an integer
-
+  const [userData, setUserData] = useState<UserEntry | null>(null);
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [watchlistStatus, setWatchlistStatus] = useState<string | null>(null);
+  const [firebase_uid, setFirebase_uid] = useState<string | null>(null);
+  const [animeStatus, setAnimeStatus] = useState<AnimeEntry | null>(null);
+  const [progress, setProgress] = useState(1); 
+  const [score, setScore] = useState(1);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        setFirebase_uid(user.uid); // Redirect if not logged in
+      } 
+    }
+  }, [user, loading]);
+
 
   useEffect(() => {
     const fetchAnimeDetails = async () => {
@@ -61,44 +99,58 @@ export default function AnimeDetail() {
     }
   }, [id]);
 
-  const handleStatusChange = async (newStatus: string) => {
-    const animeIdInt = parseInt(id, 10); // Convert anime ID to integer
 
-    if (isNaN(userIdInt) || isNaN(animeIdInt)) {
-      console.error("Invalid user_id or animes1_id. Must be an integer.");
-      return;
-    }
-
-    if (watchlistStatus === newStatus) {
-      setWatchlistStatus(null);
-    } else {
-      setWatchlistStatus(newStatus);
-
-      try {
-        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            user_id: userIdInt, // Now ensured as an integer
-            animes1_id: animeIdInt, // Now ensured as an integer
-            status: newStatus,
-            progress: 0,
-            score: 1, // Default score
-          }),
+  useEffect(()=>{
+    if(!firebase_uid) return; 
+    const fetchUserData = async() => {
+    try{
+    const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users", {
+      method: "POST",
+      headers: {
+        "Content-Type" : "application/json",
+      },
+      body : JSON.stringify({ firebase_uid: firebase_uid }),
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to update watchlist");
-        }
-
-        console.log("Successfully updated watchlist in Xano");
-      } catch (error) {
-        console.error("Error updating watchlist:", error);
-      }
+    const data = await response.json();
+    const response2 = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${data}`);
+    const data2 = await response2.json();    
+    setUserData(data2);      
+  }
+    catch (error) {
+        console.error("Error fetching user anime:", error);
     }
-  };
+      };
+      fetchUserData();
+    }, [firebase_uid]);
+
+
+  const handleStatusChange = async (status: string, progress: number, score: number) => {
+  
+    try {
+      // Step 1: Check if the anime is already in the watchlist
+      const response = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime/checkAdd`,{
+        method: "POST",
+        headers: {
+          "Content-Type" : "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userData?.id,
+          animes1_id: id,
+          status: status,
+          progress: progress,
+          score: score
+        })
+      })
+      const data = await response.json();
+      
+      // Update UI state
+      setAnimeStatus(data);
+      setWatchlistStatus(status);
+    } catch (error) {
+      console.error("Error updating watchlist:", error);
+    }
+  };  
+  
 
   if (loading) return <p className="text-center text-gray-300">Loading anime details...</p>;
   if (error) return <p className="text-center text-red-500">{error}</p>;
@@ -165,35 +217,56 @@ export default function AnimeDetail() {
             </div>
 
             {/* Watchlist Actions */}
-            <div className="bg-white p-4">
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { label: "Add to My List", icon: <ListPlus className="h-4 w-4 mr-2" />, status: "Add to My List" },
-                  { label: "ON-HOLD", icon: <Pause className="h-4 w-4 mr-2" />, status: "On-Hold" },
-                  { label: "DROPPED", icon: <X className="h-4 w-4 mr-2" />, status: "Dropped" },
-                  { label: "COMPLETED", icon: <Check className="h-4 w-4 mr-2" />, status: "Completed" },
-                ].map(({ label, icon, status }) => (
-                  <button
-                    key={status}
-                    onClick={() => handleStatusChange(status)}
-                    className={`flex items-center px-3 py-1.5 rounded text-sm ${watchlistStatus === status ? "bg-[#1c439b] text-white" : "bg-[#f8f8f8] text-[#323232] hover:bg-gray-300"}`}
-                  >
-                    {icon}
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <div className="bg-white p-4 rounded shadow">
+    <div className="flex flex-wrap gap-2">
+      {[
+        { label: "Add to My List", icon: <ListPlus className="h-4 w-4 mr-2" />, status: "Add to My List" },
+        { label: "WATCHING", icon: <Play className="h-4 w-4 mr-2" />, status: "Watching" },
+        { label: "PLAN TO WATCH", icon: <Calendar className="h-4 w-4 mr-2" />, status: "Plan to Watch" },
+        { label: "ON-HOLD", icon: <Pause className="h-4 w-4 mr-2" />, status: "On-Hold" },
+        { label: "DROPPED", icon: <X className="h-4 w-4 mr-2" />, status: "Dropped" },
+        { label: "COMPLETED", icon: <Check className="h-4 w-4 mr-2" />, status: "Completed" },
+      ].map(({ label, icon, status }) => (
+        <button
+          key={status}
+          onClick={() => handleStatusChange(status, progress, score)}
+          className={`flex items-center px-3 py-1.5 rounded text-sm 
+            ${watchlistStatus === status ? "bg-[#1c439b] text-white" : "bg-[#f8f8f8] text-[#323232] hover:bg-gray-300"}
+          `}
+        >
+          {icon}
+          {label}
+        </button>
+      ))}
+    </div>
 
+    {/* Progress & Score Inputs */}
+    <div className="mt-4 flex items-center space-x-4">
+      {/* Progress Control */}
+      <div className="flex items-center space-x-2">
+        <button onClick={() => setProgress((prev) => Math.max(prev - 1, 0))} className="px-2 py-1 bg-gray-300 rounded">➖</button>
+        <span>{progress} Episodes</span>
+        <button onClick={() => setProgress((prev) => prev + 1)} className="px-2 py-1 bg-gray-300 rounded">➕</button>
+      </div>
+
+      {/* Score Selection */}
+      <select value={score} onChange={(e) => setScore(Number(e.target.value))} className="border p-1 rounded">
+        <option value={0}>Select Score</option>
+        {[...Array(10)].map((_, i) => (
+          <option key={i + 1} value={i + 1}>
+            {i + 1}
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
             {/* Watch Now Button */}
             <Button className="bg-[#B624FF] hover:bg-[#B624FF]/80 text-white px-6 py-3 text-lg w-full">
               Watch Now
             </Button>
           </div>
-        </div>
+          </div>
       </main>
-
       <Footer />
     </div>
-  );
-}
+  )};

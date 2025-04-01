@@ -7,6 +7,10 @@ import Image from "next/image";
 import { TopNav } from "@/components/top-nav";
 import Footer from "@/components/footer";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+
 
 interface Anime {
   id: number;
@@ -20,6 +24,36 @@ interface Anime {
   avg_score: number;
 }
 
+interface FavAnime {
+  id: number
+created_at: string
+image_url: string
+title: string
+Type: string
+episodes: number
+aired_from: string
+aired_to: string
+Genres: string[]
+avg_score: number
+rank: number
+popularity: number
+members: number
+}
+
+interface UserEntry {
+  id: number
+  created_at: string
+  firebase_uid: string
+  username: string
+  picture_url: string
+  auth_provider: string
+  display_name: string
+  gender: string[]
+  country: string
+  age: number
+  favourites: number[]
+}
+
 export default function Home() {
   const [animeList, setAnimeList] = useState<Anime[]>([]);
   const [displayedAnime, setDisplayedAnime] = useState<Anime[]>([]);
@@ -28,32 +62,144 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [favorites, setFavorites] = useState<number[]>(() => {
-    if (typeof window !== "undefined") {
-      return JSON.parse(localStorage.getItem("favorites") || "[]");
-    }
-    return [];
-  });
+  const [favorites, setFavorites] = useState<FavAnime[]>([]);
+  const [userData, setUserData] = useState<UserEntry | null>(null);
+  const [debouncedUserData, setDebouncedUserData] = useState(userData);
+  const [firebase_uid, setFirebase_uid] = useState<string | null>(null);
+
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  const toggleFavorite = (id: number) => {
-    setFavorites((prev) => {
-      const updatedFavorites = prev.includes(id)
-        ? prev.filter((fid) => fid !== id)
-        : [...prev, id];
+  const { user } = useAuth();
+  const router = useRouter();
 
-      localStorage.setItem("favorites", JSON.stringify(updatedFavorites));
-      return updatedFavorites;
-    });
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        setFirebase_uid(user.uid); // Update firebase_uid when user is set
+      }
+    }
+  }, [user, loading, router]);
+
+  // Debouncing userData
+  useEffect(() => {
+    console.log("Setting debouncedUserData:", userData); // Log to verify if userData changes
+    const handler = setTimeout(() => {
+      setDebouncedUserData(userData);
+    }, 500); // Delays API call by 500ms
+
+    return () => clearTimeout(handler); // Cancels previous request if userData changes within 500ms
+  }, [userData]);
+
+  // Fetch user data based on firebase_uid
+  useEffect(() => {
+    if (!firebase_uid) return;
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ firebase_uid: firebase_uid }),
+        });
+        const data = await response.json();
+        const response2 = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${data}`);
+        const data2 = await response2.json();
+        console.log("data2", data2);
+        setUserData(data2);
+      } catch (error) {
+        console.error("Error fetching user anime:", error);
+      }
+    };
+
+    fetchUserData();
+  }, [firebase_uid]);
+
+  // Fetch anime details based on debouncedUserData
+  const fetchAnimeDetails = async (debouncedUserData: UserEntry) => {
+    console.log('Fetching anime details...', debouncedUserData); // Check if the function is triggered
+    if (!debouncedUserData?.favourites || debouncedUserData.favourites.length === 0) return [];
+
+    try {
+      const response = await fetch(
+        `https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimedata/getFavourites`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ anime_ids: debouncedUserData.favourites }),
+        }
+      );
+      const extractedData = await response.json();
+      console.log("extracted", extractedData);
+      return extractedData; // Return the data
+    } catch (error) {
+      console.error("Error fetching favorite anime details:", error);
+      return []; // Return an empty array in case of an error
+    }
   };
+
+  // useQuery with queryFn
+  const { data: favoriteAnimeList, error: queryError, isLoading } = useQuery({
+    queryKey: ["favoriteAnimes", debouncedUserData?.favourites ?? []], 
+    queryFn: () => {
+      console.log('Inside queryFn, debouncedUserData:', debouncedUserData); // Add log for debug
+      return debouncedUserData ? fetchAnimeDetails(debouncedUserData) : [];
+    },
+    enabled: !!debouncedUserData && debouncedUserData.favourites?.length > 0, // Ensure query is enabled only when there are favorites
+    staleTime: 1000 * 60 * 5, // Cache data for 5 minutes
+  });
+
+  // Update favorites when favoriteAnimeList changes
+  useEffect(() => {
+    if (favoriteAnimeList) {
+      setFavorites(favoriteAnimeList);
+    }
+  }, [favoriteAnimeList]);
+
+  const toggleFavorite = async (id: number) => {
+    if (!user) {
+      router.push("/auth/login-page");
+      return;
+    } // Ensure user is logged in before making a request
+  
+    const isFavorite = favorites.some(fav => fav.id === id);    
+    const endpoint = isFavorite 
+      ? `https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/favourites/remove`  // API to remove favorite
+      : `https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/favourites/add`;   // API to add favorite
+  
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ firebase_uid: user.uid, anime_id: id }),
+      });
+  
+      if (!response.ok) throw new Error("Failed to update favorites");
+      const newFavorite = await response.json();
+  
+      // Update state only after a successful API call
+      setFavorites((prev) => 
+        isFavorite 
+          ? prev.filter(fav => fav.id !== id) // Remove the favorite
+          : [...prev, newFavorite] // Add new favorite
+      );
+  
+      console.log(`Anime ${id} ${isFavorite ? "removed from" : "added to"} favorites.`);
+    } catch (error) {
+      console.error("Error updating favorite anime:", error);
+    }
+  };
+  
 
   useEffect(() => {
     const fetchAnime = async () => {
       setLoading(true);
       try {
         const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/animes1");
-        const response2 = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimedata/updateAvgScore");
+        await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimedata/updateAvgScore");
         const data = await response.json();
 
         const sortedData = data.sort((a: Anime, b: Anime) => b.avg_score - a.avg_score);
@@ -180,7 +326,7 @@ export default function Home() {
                       {anime.title}
                     </Link>
                     <button onClick={() => toggleFavorite(anime.id)} className="text-red-500 hover:text-red-400">
-                      <Heart className={`w-4 h-4 ${favorites.includes(anime.id) ? "fill-current" : ""}`} />
+                      <Heart className={`w-4 h-4 ${favorites.some(fav => fav.id === anime.id) ? "fill-current" : ""}`} />
                     </button>
                   </div>
                 </td>

@@ -8,10 +8,11 @@ import { useRouter } from "next/navigation";
 import * as Tooltip from "@radix-ui/react-tooltip"
 import { getAuth, onAuthStateChanged, User, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 
 type AnimeStatus = "ALL ANIME" | "Currently Watching" | "Completed" | "On-Hold" | "Dropped" | "Plan to Watch"
 
-interface Anime{
+interface Anime{ 
   id: number
   user_id: number
   animes1_id: number
@@ -20,16 +21,34 @@ interface Anime{
   score: number
 }
 
-interface AnimeEntry {
+interface UserEntry {
   id: number
-  image_url: string
-  title: string 
-  type: string
-  episodes: number
-  aired_from: string
-  aired_to: string
-  genres: string[]
-  avg_score: number
+  created_at: string
+  firebase_uid: string
+  username: string
+  picture_url: string
+  auth_provider: string
+  display_name: string
+  gender: string[]
+  country: string
+  age: number
+  favourites: number[]
+}
+
+interface FavAnime {
+  id: number
+created_at: string
+image_url: string
+title: string
+Type: string
+episodes: number
+aired_from: string
+aired_to: string
+Genres: string[]
+avg_score: number
+rank: number
+popularity: number
+members: number
 }
 
 interface StatsData {
@@ -105,15 +124,22 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
     const [animeIds, setAnimeIds] = useState<number[]>([]);
     const [page, setPage] = useState(1);
     const [firebase_uid, setFirebase_uid] = useState<string | null>(null);
-    const [favorites, setFavorites] = useState<number[]>(() => {
-      if (typeof window !== "undefined") {
-        return JSON.parse(localStorage.getItem("favorites") || "[]");
-      }
-      return [];
-    });
-    const [favoriteAnimes, setFavoriteAnimes] = useState<AnimeEntry[]>([]);
+    const [profilePic, setProfilePic] = useState<string | null>(null);
+    const [favoriteAnimes, setFavoriteAnimes] = useState<FavAnime[]>([]);
+    const [userData, setUserData] = useState<UserEntry | null>(null);
     const { user, loading } = useAuth();
     const router = useRouter();
+    const [debouncedUserData, setDebouncedUserData] = useState(userData);
+
+    
+  useEffect(() => {
+  const handler = setTimeout(() => {
+    setDebouncedUserData(userData);
+  }, 500); // ✅ Delays API call by 500ms
+
+  return () => clearTimeout(handler); // ✅ Cancels previous request if userData changes within 500ms
+}, [userData]);
+
   
     useEffect(() => {
       if (!loading) {
@@ -125,32 +151,72 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
       }
     }, [user, loading, router]);
 
-    useEffect(() => {
-      if (!firebase_uid || !favorites || favorites.length === 0) return; // ⛔ Don't fetch if no favorites
-      console.log(favorites)
-      const fetchFavoriteAnimes = async () => {
-        
-        try {
-          const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimeData/userAnime", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ ids: favorites }), // 🔥 Send favorite IDs
+    useEffect(()=>{
+      if(!firebase_uid) return; 
+      const fetchUserData = async() => {
+      try{
+      const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users", {
+        method: "POST",
+        headers: {
+          "Content-Type" : "application/json",
+        },
+        body : JSON.stringify({ firebase_uid: firebase_uid }),
           });
-    
-          if (!response.ok) throw new Error("Failed to fetch favorite animes");
-    
-          const data = await response.json();
-          setFavoriteAnimes(data);
-        } catch (error) {
-          console.error("Error fetching favorite animes:", error);
-        }
-      };
-    
-      fetchFavoriteAnimes();
-    }, [firebase_uid, favorites]); // ✅ Runs when favorites change
+      const data = await response.json();
+      console.log("data", data);
+      const response2 = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${data}`);
+      const data2 = await response2.json();
+      
+      console.log("data2", data2);
+      
+      setUserData(data2);      
+    }
+      catch (error) {
+          console.error("Error fetching user anime:", error);
+      }
+        };
+        fetchUserData();
+      }, [firebase_uid]);
+
+        
+        // Modify fetchAnimeDetails to return the data
+const fetchAnimeDetails = async (debouncedUserData: UserEntry) => {
+  if (!debouncedUserData?.favourites || debouncedUserData.favourites.length === 0) return [];
   
+  try {
+    const response = await fetch(
+      `https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimedata/getFavourites`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anime_ids: debouncedUserData.favourites }),
+      }
+    );
+    const extractedData = await response.json();
+    return extractedData; // Return the data
+  } catch (error) {
+    console.error("Error fetching favorite anime details:", error);
+    return []; // Return an empty array in case of an error
+  }
+};
+
+// useQuery with queryFn
+const { data: favoriteAnimeList, error: queryError, isLoading } = useQuery({
+  queryKey: ["favoriteAnimes", debouncedUserData?.favourites ?? []], 
+  queryFn: () => debouncedUserData ? fetchAnimeDetails(debouncedUserData) : [],
+  enabled: !!debouncedUserData?.favourites?.length,
+  staleTime: 1000 * 60 * 10,
+  gcTime: 1000 * 60 * 30,
+  retry: 3, // ✅ Retry up to 3 times
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+});
+
+useEffect(() => {
+  if (favoriteAnimeList) {
+    setFavoriteAnimes(favoriteAnimeList);
+  }
+}, [favoriteAnimeList]);
+        
     
     const filteredAnime = activeTab === "ALL ANIME" 
     ? userAnime 
@@ -169,39 +235,51 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
     };
     const total = Object.values(stats).reduce((acc, curr) => acc + curr, 0)
 
-    useEffect(() => {
-      if (!firebase_uid) return; // ⛔ Prevent running if UID is not set
-    
-      const fetchUserAnime = async () => {
-        try {
-          const response = await fetch(
-            "https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/fullList",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ firebaseUid: firebase_uid }),
-            }
-          );
-    
-          console.log(response);
-          if (!response.ok) throw new Error("Failed to fetch user anime");
-    
-          const userAnimeData = await response.json();
-          const SortedData = userAnimeData.sort((a: Anime, b: Anime) => b.id - a.id);
-          setUserAnime(SortedData);
-    
-          // Extract anime IDs from user's anime list
-          const ids = SortedData.map((entry: { animes1_id: number }) => entry.animes1_id);
-          setAnimeIds(ids); // ✅ Now animeIds is correctly set
-        } catch (error) {
-          console.error("Error fetching user anime:", error);
+    const fetchUserAnimeData = async (firebase_uid: string) => {
+      const response = await fetch(
+        "https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/fullList",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ firebaseUid: firebase_uid }),
         }
-      };
+      );
     
-      fetchUserAnime();
-    }, [firebase_uid]); // ✅ Add firebase_uid as a dependency
+      if (!response.ok) {
+        throw new Error("Failed to fetch user anime");
+      }
+    
+      const userAnimeData = await response.json();
+      const SortedData = userAnimeData.sort((a: Anime, b: Anime) => b.id - a.id);
+      return SortedData;  // Return sorted data for caching
+    };
+
+
+const { data: userAnimeData, error: queryError2, isLoading: queryLoading } = useQuery({
+  queryKey: ['userAnime', firebase_uid],
+  queryFn: () => {
+    // Type assertion for the query function
+    if (firebase_uid === null) {
+      throw new Error("firebase_uid is null");
+    }
+    return fetchUserAnimeData(firebase_uid);
+  },
+  enabled: !!firebase_uid,
+  staleTime: 1000 * 60 * 10,
+  gcTime: 1000 * 60 * 30, // cacheTime was renamed to gcTime in v4
+  retry: 3, // ✅ Retry up to 3 times
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+});
+
+// Handle success with useEffect instead
+useEffect(() => {
+  if (userAnimeData) {
+    const ids = userAnimeData.map((entry: { animes1_id: number }) => entry.animes1_id);
+    setAnimeIds(ids);
+  }
+}, [userAnimeData]);
     
     
     // Fetch anime details based on animeIds
@@ -218,7 +296,7 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
             body: JSON.stringify({ ids: animeIds }),
           });
     
-          if (!response.ok) throw new Error("Failed to fetch anime details");
+          //if (!response.ok) throw new Error("Failed to fetch anime details");
     
           const animeDetailsData = await response.json();
     
@@ -253,7 +331,7 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
         <div className="flex items-start gap-6">
           <div className="relative w-24 h-24">
             <Image
-              src="/placeholder.svg?height=96&width=96"
+              src={userData?.picture_url || "/placeholder.svg?height=96&width=96"}
               alt="Profile Avatar"
               className="rounded-full"
               width={96}
@@ -263,20 +341,22 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
           <div className="flex-1">
             <h2 className="text-xl font-bold mb-4">Favourites</h2>
             <div className="flex gap-4 flex-wrap">
-            {favoriteAnimes.length > 0 ? (
-              favoriteAnimes.map((anime) => (
-            <div key={anime.id} className="relative w-20 h-28">
-            <Image 
-              src={anime.image_url || "/placeholder.svg"} 
-              alt={anime.title || `Anime ${anime.id}`} 
-              fill
-              className="rounded-md object-cover"
-            />
-            </div>
-            ))
-             ) : (
-            <p>No favorites selected yet.</p>
-              )}
+            {favoriteAnimes?.length > 0 ? (
+  favoriteAnimes.map((anime) =>
+    anime && anime.image_url ? (
+      <div key={anime.id} className="relative w-20 h-28">
+        <Image
+          src={anime.image_url}
+          alt={anime.title || `Anime ${anime.id}`}
+          fill
+          className="rounded-md object-cover"
+        />
+      </div>
+    ) : null // ✅ Skip undefined or incomplete data
+  )
+) : (
+  <p>No favorites selected yet.</p>
+)}
           </div>
 
           </div>

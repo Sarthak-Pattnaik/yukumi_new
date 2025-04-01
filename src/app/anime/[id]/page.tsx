@@ -70,6 +70,8 @@ export default function AnimeDetail() {
     }
   
     try {
+      console.log("Fetching watchlist entry for:", { userIdInt, animeIdInt });
+  
       // Step 1: Check if the anime is already in the watchlist
       const checkResponse = await fetch(
         `https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime?user_id=${userIdInt}&animes1_id=${animeIdInt}`
@@ -80,11 +82,14 @@ export default function AnimeDetail() {
       }
   
       const watchlistData = await checkResponse.json();
+      console.log("Watchlist Data Response:", watchlistData);
   
       if (watchlistData.length > 0) {
         // Step 2: If exists, update using PATCH
-        const existingEntry = watchlistData[0]; // Assuming the first entry is the correct one
-        const userAnimeId = existingEntry.id; // Get the `user_anime_id`
+        const existingEntry = watchlistData[0]; // Get the first entry
+        const userAnimeId = existingEntry.id; // Extract the user_anime_id
+  
+        console.log("Updating existing entry with PATCH:", userAnimeId);
   
         const patchResponse = await fetch(
           `https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime/${userAnimeId}`,
@@ -99,13 +104,18 @@ export default function AnimeDetail() {
           }
         );
   
+        console.log("PATCH Response Status:", patchResponse.status);
+  
         if (!patchResponse.ok) {
-          throw new Error("Failed to update watchlist");
+          const errorText = await patchResponse.text();
+          throw new Error(`Failed to update watchlist: ${errorText}`);
         }
   
         console.log("Successfully updated watchlist in Xano");
       } else {
         // Step 3: If not found, create a new entry using POST
+        console.log("Adding new entry with POST");
+  
         const postResponse = await fetch(
           "https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime",
           {
@@ -121,8 +131,11 @@ export default function AnimeDetail() {
           }
         );
   
+        console.log("POST Response Status:", postResponse.status);
+  
         if (!postResponse.ok) {
-          throw new Error("Failed to add to watchlist");
+          const errorText = await postResponse.text();
+          throw new Error(`Failed to add to watchlist: ${errorText}`);
         }
   
         console.log("Successfully added to watchlist in Xano");
@@ -134,6 +147,7 @@ export default function AnimeDetail() {
       console.error("Error updating watchlist:", error);
     }
   };
+   
   
 
   if (loading) return <p className="text-center text-gray-300">Loading anime details...</p>;

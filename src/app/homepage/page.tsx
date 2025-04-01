@@ -21,7 +21,6 @@ interface Post {
   ref_link: string
   likes: number
   comment_count: number
-  comment: [string]
   views: number
   shares: number
   liked?: boolean;

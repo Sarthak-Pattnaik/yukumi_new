@@ -10,6 +10,9 @@ import { getAuth, onAuthStateChanged, User, setPersistence, browserLocalPersiste
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 
+
+
+
 type AnimeStatus = "ALL ANIME" | "Currently Watching" | "Completed" | "On-Hold" | "Dropped" | "Plan to Watch"
 
 interface Anime{ 
@@ -120,7 +123,6 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
     
     const [error, setError] = useState<string | null>(null);
     const [userAnime, setUserAnime] = useState<Anime[]>([]); // User's anime
-    const [animeDetails, setAnimeDetails] = useState<Record<number, { image_url: string; title: string; type: string }>>({});
     const [animeIds, setAnimeIds] = useState<number[]>([]);
     const [page, setPage] = useState(1);
     const [firebase_uid, setFirebase_uid] = useState<string | null>(null);
@@ -132,16 +134,9 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
     const [debouncedUserData, setDebouncedUserData] = useState(userData);
 
     
-  useEffect(() => {
-  const handler = setTimeout(() => {
-    setDebouncedUserData(userData);
-  }, 500); // ✅ Delays API call by 500ms
-
-  return () => clearTimeout(handler); // ✅ Cancels previous request if userData changes within 500ms
-}, [userData]);
 
   
-    useEffect(() => {
+useEffect(() => {
       if (!loading) {
         if (!user) {
           router.push("/auth/login-page"); // Redirect if not logged in
@@ -149,11 +144,11 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
           setFirebase_uid(user.uid); // Update firebase_uid when user is set
         }
       }
-    }, [user, loading, router]);
+}, [user, loading, router]);
 
-    useEffect(()=>{
-      if(!firebase_uid) return; 
-      const fetchUserData = async() => {
+//START FETCHING USER DATA HERE
+
+const fetchUserData = async() => {
       try{
       const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users", {
         method: "POST",
@@ -163,36 +158,45 @@ const [activeStatusKey, setActiveStatusKey] = useState<string | null>(null);
         body : JSON.stringify({ firebase_uid: firebase_uid }),
           });
       const data = await response.json();
-      console.log("data", data);
       const response2 = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${data}`);
-      const data2 = await response2.json();
-      
-      console.log("data2", data2);
-      
-      setUserData(data2);      
+      const data2 = await response2.json();      
+      setUserData(data2);  
+      return data2;    
     }
       catch (error) {
           console.error("Error fetching user anime:", error);
       }
-        };
-        fetchUserData();
-      }, [firebase_uid]);
+};
 
+const { data: userDetails, error: userQueryError, isLoading: isUserLoading,} = useQuery({
+  queryKey: ["userDetails", firebase_uid],
+  queryFn: () => {
+    if (!firebase_uid) return Promise.resolve(null); 
+    return fetchUserData(); 
+  },
+  enabled: !!firebase_uid,
+  staleTime: 1000 * 60 * 1, // 1 minute before refetch is triggered
+  gcTime: 1000 * 60 * 2,    // Cache garbage collected after 2 minutes unused
+  retry: 3,
+  retryDelay: attempt => Math.min(1000 * 2 ** attempt, 30000),
+});
+
+//END FETCHING USER DATA HERE
         
-        // Modify fetchAnimeDetails to return the data
-const fetchAnimeDetails = async (debouncedUserData: UserEntry) => {
-  if (!debouncedUserData?.favourites || debouncedUserData.favourites.length === 0) return [];
-  
+// START FETCHING USER ANIME DATA HERE
+const fetchAnimeDetails = async (userData: UserEntry) => {
+  if (!userData?.favourites || userData.favourites.length === 0) return [];
   try {
     const response = await fetch(
       `https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimedata/getFavourites`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ anime_ids: debouncedUserData.favourites }),
+        body: JSON.stringify({ anime_ids: userData.favourites }),
       }
     );
     const extractedData = await response.json();
+    //console.log(extractedData); // Log the extracted data
     return extractedData; // Return the data
   } catch (error) {
     console.error("Error fetching favorite anime details:", error);
@@ -200,42 +204,52 @@ const fetchAnimeDetails = async (debouncedUserData: UserEntry) => {
   }
 };
 
-// useQuery with queryFn
+
 const { data: favoriteAnimeList, error: queryError, isLoading } = useQuery({
-  queryKey: ["favoriteAnimes", debouncedUserData?.favourites ?? []], 
-  queryFn: () => debouncedUserData ? fetchAnimeDetails(debouncedUserData) : [],
-  enabled: !!debouncedUserData?.favourites?.length,
-  staleTime: 1000 * 60 * 10,
-  gcTime: 1000 * 60 * 30,
-  retry: 3, // ✅ Retry up to 3 times
+  queryKey: ["favoriteAnimes", firebase_uid],
+  queryFn: () => {
+    if (!userData) return Promise.resolve(null); 
+    return fetchAnimeDetails(userData); 
+  },
+  enabled: !!userData,
+  staleTime: 1000 * 60 * 1,
+  gcTime: 1000 * 60 * 2,
+  retry: 3,
   retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
 });
 
+//END FETCHING USER ANIME DATA HERE
+
 useEffect(() => {
-  if (favoriteAnimeList) {
-    setFavoriteAnimes(favoriteAnimeList);
+  if (userDetails && firebase_uid) {
+    localStorage.setItem(`userDetails_${firebase_uid}`, JSON.stringify(userDetails));
   }
-}, [favoriteAnimeList]);
+  if (favoriteAnimeList && firebase_uid) {
+    localStorage.setItem(`favoriteAnimes_${firebase_uid}`, JSON.stringify(favoriteAnimeList));
+  }
+}, [userDetails, firebase_uid, favoriteAnimeList]);
+
+
         
     
-    const filteredAnime = activeTab === "ALL ANIME" 
-    ? userAnime 
-    : userAnime.filter((anime) => anime.status === activeTab);
-  
-    const Episodes = userAnime.reduce((sum, anime) => sum + (anime.progress || 0), 0);
-    const Days = parseFloat((Episodes / 60).toFixed(1));
-    const totalScore = userAnime.reduce((sum, anime) => sum + (anime.score || 0), 0);
-    const Mean = userAnime.length > 0 ? parseFloat((totalScore / userAnime.length).toFixed(2)) : 0;
-    const stats: StatsData = {
+const filteredAnime = activeTab === "ALL ANIME" ? userAnime : userAnime.filter((anime) => anime.status === activeTab);
+const Episodes = userAnime.reduce((sum, anime) => sum + (anime.progress || 0), 0);
+const Days = parseFloat((Episodes / 60).toFixed(1));
+const totalScore = userAnime.reduce((sum, anime) => sum + (anime.score || 0), 0);
+const Mean = userAnime.length > 0 ? parseFloat((totalScore / userAnime.length).toFixed(2)) : 0;
+const stats: StatsData = {
       watching: userAnime.filter((anime) => anime.status === "Currently Watching").length,
       completed: userAnime.filter((anime) => anime.status === "Completed").length,
       onHold: userAnime.filter((anime) => anime.status === "On-Hold").length,
       dropped: userAnime.filter((anime) => anime.status === "Dropped").length,
       planToWatch: userAnime.filter((anime) => anime.status === "Plan to Watch").length,
-    };
-    const total = Object.values(stats).reduce((acc, curr) => acc + curr, 0)
+  };
+const total = Object.values(stats).reduce((acc, curr) => acc + curr, 0)
 
-    const fetchUserAnimeData = async (firebase_uid: string) => {
+
+
+
+const fetchUserAnimeData = async (firebase_uid: string) => {
       const response = await fetch(
         "https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/fullList",
         {
@@ -253,74 +267,98 @@ useEffect(() => {
     
       const userAnimeData = await response.json();
       const SortedData = userAnimeData.sort((a: Anime, b: Anime) => b.id - a.id);
+      console.log(SortedData); // Log the sorted data
       return SortedData;  // Return sorted data for caching
-    };
+};
 
 
 const { data: userAnimeData, error: queryError2, isLoading: queryLoading } = useQuery({
-  queryKey: ['userAnime', firebase_uid],
-  queryFn: () => {
-    // Type assertion for the query function
-    if (firebase_uid === null) {
-      throw new Error("firebase_uid is null");
-    }
-    return fetchUserAnimeData(firebase_uid);
-  },
-  enabled: !!firebase_uid,
-  staleTime: 1000 * 60 * 10,
-  gcTime: 1000 * 60 * 30, // cacheTime was renamed to gcTime in v4
-  retry: 3, // ✅ Retry up to 3 times
-  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
-});
-
-// Handle success with useEffect instead
-useEffect(() => {
-  if (userAnimeData) {
-    const ids = userAnimeData.map((entry: { animes1_id: number }) => entry.animes1_id);
-    setAnimeIds(ids);
-  }
-}, [userAnimeData]);
+      queryKey: ['userAnime', firebase_uid],
+      queryFn: () => {
+        if (!firebase_uid) return Promise.resolve(null); 
+        return fetchUserAnimeData(firebase_uid); 
+      },
+      enabled: !!firebase_uid,
+      staleTime: 1000 * 60 * 1,
+      gcTime: 1000 * 60 * 2,
+      retry: 3,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+    });
+    
+    // 🔹 Store the anime IDs separately
+    useEffect(() => {
+      if (userAnimeData) {
+        setUserAnime(userAnimeData);
+        const ids = userAnimeData.map((entry: { animes1_id: number }) => entry.animes1_id);
+        setAnimeIds(ids);
+        localStorage.setItem(`userAnimeIds_${firebase_uid}`, JSON.stringify(ids));
+      }
+    }, [userAnimeData, firebase_uid]);
+    
     
     
     // Fetch anime details based on animeIds
-    useEffect(() => {
-      if (!firebase_uid || !animeIds || animeIds.length === 0) return; 
-      const fetchAnimeDetails = async () => {
-        
-        try {
-          const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimeData/userAnime", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ ids: animeIds }),
-          });
-    
-          //if (!response.ok) throw new Error("Failed to fetch anime details");
-    
-          const animeDetailsData = await response.json();
-    
-          // Map API data to correct format
-          const animeDetailsMap: Record<number, { image_url: string; title: string; type: string }> = {};
-          animeDetailsData.forEach((entry: { id: number; image_url: string; title: string; Type: string }) => {
-            animeDetailsMap[entry.id] = {
-              image_url: entry.image_url,
-              title: entry.title,
-              type: entry.Type,
-            };
-          });
-    
-          setAnimeDetails(animeDetailsMap);
-        } catch (error) {
-          console.error("Error fetching anime details:", error);
-        }
+    const { data: animeDetails, error: animeError, isLoading: isAnimeLoading } = useQuery({
+      queryKey: ["animeDetails", animeIds],
+      queryFn: async () => {
+        console.log(animeIds);
+        if (!animeIds || animeIds.length === 0) return null; // ✅ Prevents API call when animeIds is empty
+
+    // 🔹 Attempt to fetch from local storage
+    const storageKey = `animeDetails_${animeIds.join(",")}`;
+    const cachedData = localStorage.getItem(storageKey);
+if (cachedData) {
+  try {
+    const parsed = JSON.parse(cachedData); // parsed is an array
+    const mappedData: Record<number, { image_url: string; title: string; type: string }> = {};
+    parsed.forEach((entry: any) => {
+      mappedData[entry.id] = {
+        image_url: entry.image_url,
+        title: entry.title,
+        type: entry.Type,
       };
+    });
+    return mappedData; // ✅ Now consistent with your expected return type
+  } catch (error) {
+    console.error("Failed to parse and map local storage data:", error);
+  }
+}
+
+
+    // 🔹 No cache? Fetch fresh data
+    const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:8BJgb0Hk/fetchanimeData/userAnime", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: animeIds }),
+    });
+
+    if (!response.ok) throw new Error("Failed to fetch anime details");
+
+    const animeDetailsData = await response.json();
+    // 🔹 Format API response
+    const animeDetailsMap: Record<number, { image_url: string; title: string; type: string }> = {};
+    animeDetailsData.forEach((entry: { id: number; image_url: string; title: string; Type: string }) => {
+      animeDetailsMap[entry.id] = {
+        image_url: entry.image_url,
+        title: entry.title,
+        type: entry.Type,
+      };
+    });
+
+    // 🔹 Save fetched data to local storage
+    localStorage.setItem(storageKey, JSON.stringify(animeDetailsMap));
+    return animeDetailsMap;
+  },
+      enabled: !!animeIds?.length,
+      staleTime: 1000 * 60 * 1, // Cache data for 10 minutes
+      gcTime: 1000 * 60 * 2, // Remove unused data after 30 minutes
+      retry: 3,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+    });
     
-      fetchAnimeDetails();
-    }, [firebase_uid, animeIds]);
     
     if (loading) return <p>Loading...</p>;
-
+//JSX STARTS HERE
   return (
     <div className="container mx-auto px-4 py-8 space-y-12">
   <TopNav />
@@ -330,26 +368,31 @@ useEffect(() => {
       <div className="bg-white/5 rounded-lg p-6 mb-6">
         <div className="flex items-start gap-6">
           <div className="relative w-24 h-24">
-            <Image
-              src={userData?.picture_url || "/placeholder.svg?height=96&width=96"}
-              alt="Profile Avatar"
-              className="rounded-full"
-              width={96}
-              height={96}
-            />
+          <Image
+    src="https://res.cloudinary.com/difdc39kr/image/upload/v1742924882/DisplayPicture/vrhljafkwcbkc9wp5hws.jpg"
+    alt="Profile Picture"
+    fill
+    sizes="96px"
+    className="object-cover rounded-full"
+    priority
+  />
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold mb-4">Favourites</h2>
             <div className="flex gap-4 flex-wrap">
-            {favoriteAnimes?.length > 0 ? (
-  favoriteAnimes.map((anime) =>
+            {favoriteAnimeList?.length > 0 ? (
+  favoriteAnimeList.map((anime: FavAnime) =>
     anime && anime.image_url ? (
       <div key={anime.id} className="relative w-20 h-28">
         <Image
           src={anime.image_url}
           alt={anime.title || `Anime ${anime.id}`}
           fill
+          sizes="(max-width: 768px) 100vw,
+         (max-width: 1200px) 50vw,
+         33vw"
           className="rounded-md object-cover"
+          priority
         />
       </div>
     ) : null // ✅ Skip undefined or incomplete data
@@ -460,17 +503,17 @@ useEffect(() => {
                   <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
                       <Image
-                        src={animeDetails[anime.animes1_id]?.image_url || "/placeholder.svg"}
-                        alt={animeDetails[anime.animes1_id]?.title || `Anime ${anime.animes1_id}`}
+                        src={animeDetails?.[anime.animes1_id]?.image_url || "/placeholder.svg"}
+                        alt={animeDetails?.[anime.animes1_id]?.title || `Anime ${anime.animes1_id}`}
                         width={40}
                         height={60}
                         className="rounded"
                       />
-                      <span>{animeDetails[anime.animes1_id]?.title }</span>
+                      <span>{animeDetails?.[anime.animes1_id]?.title }</span>
                     </div>
                   </td>
                   <td className="py-3 px-4 text-right">{anime.score || "-"}</td>
-                  <td className="py-3 px-4">{animeDetails[anime.animes1_id]?.type || `Anime ${anime.animes1_id}`}</td>
+                  <td className="py-3 px-4">{animeDetails?.[anime.animes1_id]?.type || `Anime ${anime.animes1_id}`}</td>
                   <td className="py-3 px-4 text-right">{anime.progress}</td>
                 </tr>
               ))}

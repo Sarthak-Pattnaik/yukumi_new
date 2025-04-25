@@ -1,12 +1,16 @@
 "use client"; // Ensures this is a client component
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { LeftSidebar } from "@/components/left-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
 import { Card } from "@/components/ui/card";
 import { TopNav } from "@/components/top-nav";
 import { FiShare2, FiFlag, FiHeart, FiMessageCircle } from "react-icons/fi"; // Importing icons
+import { FaHeart } from "react-icons/fa"; // Filled heart
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+
 
 interface Post {
   id: number
@@ -28,58 +32,127 @@ interface Post {
   profile_pic?: string;
 }
 
+interface UserEntry {
+  id: number
+  created_at: string
+  firebase_uid: string
+  username: string
+  picture_url: string
+  auth_provider: string
+  display_name: string
+  gender: string[]
+  country: string
+  age: number
+  favourites: number[]
+}
+
 
 export default function Home() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [userId, setUserId] = useState<number | null>(null);
+    const [firebase_uid, setFirebase_uid] = useState<string | null>(null);
+    const [userData, setUserData] = useState<UserEntry | null>(null);
+    const { user, loading } = useAuth();
+    const router = useRouter();
+    
 
     useEffect(() => {
-      fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts")
-        .then((res) => res.json())
-        .then(async (data) => {
-          // Fetch user details for each post
-          const postsWithUserData = await Promise.all(
-            data.map(async (post: Post) => {
-              try {
-                const userRes = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${post.users_id}`);
-                const userData = await userRes.json();
-                setUserId(userData.id);
-                return {
-                  ...post,
-                  liked: false, // Default liked state
-                  username: userData.username, // Add username
-                  profile_pic: userData.profile_pic // Add profile picture
-                };
-              } catch (error) {
-                console.error(`Error fetching user data for post ${post.id}:`, error);
-                return { ...post, liked: false, username: "Unknown", profile_pic: "" }; // Fallback values
-              }
-            })
-          );
-    
-          setPosts(postsWithUserData);
-        })
-        .catch((err) => console.error("Error fetching posts:", err));
-    }, []);
-    
+      if (!loading) {
+        if (user){
+          setFirebase_uid(user.uid); // Update firebase_uid when user is set
+        }
+      }
+}, [user, loading]);
 
+//START FETCHING USER DATA HERE
+
+const fetchUserData = async() => {
+  console.log("peek");
+
+      try{
+      const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users", {
+        method: "POST",
+        headers: {
+          "Content-Type" : "application/json",
+        },
+        body : JSON.stringify({ firebase_uid: firebase_uid }),
+          });
+      const data = await response.json();
+      setUserId(data); // Set userId from the response
+      const response2 = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${data}`);
+      const data2 = await response2.json();      
+      setUserData(data2);  
+      return data2;    
+    }
+      catch (error) {
+          console.error("Error fetching user anime:", error);
+      }
+};
+
+const { data: userDetails, error: userQueryError, isLoading: isUserLoading,} = useQuery({
+  queryKey: ["userDetails", firebase_uid],
+  queryFn: () => {
+    console.log("Running queryFn with uid:", firebase_uid);
+    if (!firebase_uid) return Promise.resolve(null);
+    return fetchUserData();
+  },
+  enabled: !!firebase_uid,
+  staleTime: 1000,
+  gcTime: 1000 * 60 * 2,
+  retry: false,
+});
+
+//END FETCHING USER DATA HERE
+    
+  const fetchPostsWithUserData = async (): Promise<Post[]> => {
+    const postRes = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts");
+    const posts: Post[] = await postRes.json();
+    setPosts(posts);
+    return posts;
+  };
+  
+
+  const { data: postsWithUser, isLoading, isError } = useQuery<Post[], Error>({
+    queryKey: ['posts-with-user'],
+    queryFn: fetchPostsWithUserData, // `queryFn` is correctly typed now
+    staleTime: 1000,
+    gcTime: 1000 * 60 * 2,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+  });
+  
+
+
+
+
+    
+  const updatedPostRef = useRef<Post | null>(null);
   // Handle Like Button Click
   const toggleLike = async(postId: number) => {
     setPosts((prevPosts) =>
-      prevPosts.map((post) =>
-        post.id === postId
-          ? { ...post, likes: post.liked ? post.likes - 1 : post.likes + 1, liked: post.liked }
-          : post
-      )
+      prevPosts.map((post) => {
+        if (post.id === postId) {
+          const updatedPost = {
+            ...post,
+            likes: post.liked ? post.likes - 1 : post.likes + 1,
+            liked: !post.liked,
+          };
+          updatedPostRef.current = updatedPost; // store the updated post
+          return updatedPost;
+        }
+        return post;
+      })
     );
+    
     try {
       await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/update/likes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ posts_id: postId }),
+        body: JSON.stringify({ posts_id: postId, likes: updatedPostRef?.current?.likes }),
     });
+    /*
       await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/likes`, {
         method: "POST", // or "PUT" depending on Xano API setup
         headers: {
@@ -88,7 +161,7 @@ export default function Home() {
         body: JSON.stringify({ users_id: userId, posts_id: postId, liked: !(posts.find((p) => p.id === postId)?.liked ?? false)
         }),
       });
-  
+  */
     } catch (error) {
       console.error("Error updating like count in Xano:", error);
     }
@@ -150,7 +223,18 @@ export default function Home() {
                   className={`flex items-center gap-1 ${post.liked ? "text-red-500" : "text-gray-400"}`}
                   onClick={() => toggleLike(post.id)}
                 >
-                  <FiHeart className="cursor-pointer hover:text-red-500" />
+                    {post.liked ? (
+                    <FaHeart
+                      className="cursor-pointer text-red-500"
+                      onClick={() => toggleLike(post.id)}
+                    />
+                    ) : (
+                    <FiHeart
+                      className="cursor-pointer hover:text-red-500"
+                      onClick={() => toggleLike(post.id)}
+                    />
+                    )}
+
                   <span>{post.likes}</span>
                 </button>
 

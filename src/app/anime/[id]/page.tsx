@@ -125,7 +125,7 @@ export default function AnimeDetail() {
 
 
   const handleStatusChange = async (status: string, progress: number, score: number) => {
-  
+  if(status == "Add To My List") return;
     try {
       // Step 1: Check if the anime is already in the watchlist
       const response = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime/checkAdd`,{
@@ -150,6 +150,10 @@ export default function AnimeDetail() {
       console.error("Error updating watchlist:", error);
     }
   };  
+
+  const handleUpdate = () => {
+    handleStatusChange(watchlistStatus ?? "Add to My List", progress, score);
+  };
   
 
   if (loading) return <p className="text-center text-gray-300">Loading anime details...</p>;
@@ -221,7 +225,7 @@ export default function AnimeDetail() {
     <div className="flex flex-wrap gap-2">
       {[
         { label: "Add to My List", icon: <ListPlus className="h-4 w-4 mr-2" />, status: "Add to My List" },
-        { label: "WATCHING", icon: <Play className="h-4 w-4 mr-2" />, status: "Watching" },
+        { label: "CURRENTLY WATCHING", icon: <Play className="h-4 w-4 mr-2" />, status: "Currently Watching" },
         { label: "PLAN TO WATCH", icon: <Calendar className="h-4 w-4 mr-2" />, status: "Plan to Watch" },
         { label: "ON-HOLD", icon: <Pause className="h-4 w-4 mr-2" />, status: "On-Hold" },
         { label: "DROPPED", icon: <X className="h-4 w-4 mr-2" />, status: "Dropped" },
@@ -229,7 +233,7 @@ export default function AnimeDetail() {
       ].map(({ label, icon, status }) => (
         <button
           key={status}
-          onClick={() => handleStatusChange(status, progress, score)}
+          onClick={() => setWatchlistStatus(status)}
           className={`flex items-center px-3 py-1.5 rounded text-sm 
             ${watchlistStatus === status ? "bg-[#1c439b] text-white" : "bg-[#f8f8f8] text-[#323232] hover:bg-gray-300"}
           `}
@@ -245,12 +249,12 @@ export default function AnimeDetail() {
       {/* Progress Control */}
       <div className="flex items-center space-x-2">
         <button onClick={() => setProgress((prev) => Math.max(prev - 1, 0))} className="px-2 py-1 bg-gray-300 rounded">➖</button>
-        <span>{progress} Episodes</span>
+        <span className="text-gray-800 font-medium">{progress} Episodes</span>
         <button onClick={() => setProgress((prev) => prev + 1)} className="px-2 py-1 bg-gray-300 rounded">➕</button>
       </div>
 
       {/* Score Selection */}
-      <select value={score} onChange={(e) => setScore(Number(e.target.value))} className="border p-1 rounded">
+      <select value={score} onChange={(e) => setScore(Number(e.target.value))} className="text-gray-800 font-medium">
         <option value={0}>Select Score</option>
         {[...Array(10)].map((_, i) => (
           <option key={i + 1} value={i + 1}>
@@ -259,6 +263,12 @@ export default function AnimeDetail() {
         ))}
       </select>
     </div>
+    <button
+        onClick={handleUpdate}
+        className="mt-4 w-full bg-[#1c439b] text-white py-2 rounded font-medium hover:bg-[#162e6a] transition"
+      >
+        Update
+      </button>
   </div>
             {/* Watch Now Button */}
             <Button className="bg-[#B624FF] hover:bg-[#B624FF]/80 text-white px-6 py-3 text-lg w-full">

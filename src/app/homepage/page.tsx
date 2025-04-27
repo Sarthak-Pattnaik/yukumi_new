@@ -89,83 +89,152 @@ const fetchUserData = async() => {
       }
 };
 
-const { data: userDetails, error: userQueryError, isLoading: isUserLoading,} = useQuery({
+// First, read cached userDetails from localStorage outside the query
+const cachedUserDetails = typeof window !== "undefined" ? localStorage.getItem(`userDetails_${firebase_uid}`) : null;
+const parsedUserDetails = cachedUserDetails ? JSON.parse(cachedUserDetails) : undefined;
+
+const { data: userDetails, error: userQueryError, isLoading: isUserLoading } = useQuery({
   queryKey: ["userDetails", firebase_uid],
-  queryFn: () => {
+  queryFn: async () => {
     console.log("Running queryFn with uid:", firebase_uid);
-    if (!firebase_uid) return Promise.resolve(null);
-    return fetchUserData();
+    if (!firebase_uid) return null;
+
+    const freshUserData = await fetchUserData();
+
+    // Save fresh user details to localStorage
+    if (freshUserData) {
+      localStorage.setItem(`userDetails_${firebase_uid}`, JSON.stringify(freshUserData));
+    }
+
+    return freshUserData;
   },
   enabled: !!firebase_uid,
+  initialData: parsedUserDetails,  // 👈 show cached data immediately
   staleTime: 1000,
   gcTime: 1000 * 60 * 2,
   retry: false,
 });
 
+
+
 //END FETCHING USER DATA HERE
     
-  const fetchPostsWithUserData = async (): Promise<Post[]> => {
-    const postRes = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts");
-    const posts: Post[] = await postRes.json();
-    setPosts(posts);
-    return posts;
-  };
-  
+const fetchPostsWithUserData = async (): Promise<Post[]> => {
+  console.log("Fetching posts with user data...");
 
-  const { data: postsWithUser, isLoading, isError } = useQuery<Post[], Error>({
-    queryKey: ['posts-with-user'],
-    queryFn: fetchPostsWithUserData, // `queryFn` is correctly typed now
-    staleTime: 1000,
-    gcTime: 1000 * 60 * 2,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+  // 1. Fetch all posts
+  const postRes = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts");
+  const posts: Post[] = await postRes.json();
+
+  // 2. Fetch all posts liked by the current user
+  const likesRes = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/LikedOrNot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ users_id: userId }), 
+  // Use userId from the state
   });
+  const likesData: { posts_id: number; liked: boolean }[] = await likesRes.json();
+
+  // 3. Create a quick lookup map for liked posts
+  const likedPostsMap = new Map<number, boolean>();
+  likesData.forEach((like) => {
+    if (like.liked) { // Only mark posts where user actually liked
+      likedPostsMap.set(like.posts_id, true);
+    }
+  });
+
+  // 4. Merge liked status into each post
+  const postsWithLiked = posts.map((post) => ({
+    ...post,
+    liked: likedPostsMap.get(post.id) || false, // default to false if not liked
+  }));
+
+  // 5. Update local state
+  setPosts(postsWithLiked);
+
+  return postsWithLiked;
+};
+
   
 
+  // First, read localStorage outside the query
+const cachedPosts = typeof window !== "undefined" ? localStorage.getItem('posts-with-user') : null;
+const parsedPosts = cachedPosts ? JSON.parse(cachedPosts) as Post[] : undefined;
 
+const { data: postsWithUser, isLoading, isError } = useQuery<Post[], Error>({
+  queryKey: ['posts-with-user'],
+  queryFn: async () => {
+    const freshPosts = await fetchPostsWithUserData();
 
-
-    
-  const updatedPostRef = useRef<Post | null>(null);
-  // Handle Like Button Click
-  const toggleLike = async(postId: number) => {
-    setPosts((prevPosts) =>
-      prevPosts.map((post) => {
-        if (post.id === postId) {
-          const updatedPost = {
-            ...post,
-            likes: post.liked ? post.likes - 1 : post.likes + 1,
-            liked: !post.liked,
-          };
-          updatedPostRef.current = updatedPost; // store the updated post
-          return updatedPost;
-        }
-        return post;
-      })
-    );
-    
-    try {
-      await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/update/likes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ posts_id: postId, likes: updatedPostRef?.current?.likes }),
-    });
-    /*
-      await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/likes`, {
-        method: "POST", // or "PUT" depending on Xano API setup
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ users_id: userId, posts_id: postId, liked: !(posts.find((p) => p.id === postId)?.liked ?? false)
-        }),
-      });
-  */
-    } catch (error) {
-      console.error("Error updating like count in Xano:", error);
+    // After fetching, update localStorage
+    if (freshPosts) {
+      localStorage.setItem('posts-with-user', JSON.stringify(freshPosts));
     }
-  };
+
+    return freshPosts;
+  },
+  initialData: parsedPosts, // 👈 load cached posts immediately
+  staleTime: 1000,          // 👈 stale after 1 second
+  gcTime: 1000 * 60 * 2,
+  retry: 3,
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+});
+
+const updatePostsEverywhere = (updatedPosts: Post[]) => {
+  setPosts(updatedPosts);
+  if (typeof window !== "undefined") {
+    localStorage.setItem('posts-with-user', JSON.stringify(updatedPosts));
+  }
+};
+
+
+    
+ // Handle Like Button Click
+ const toggleLike = async (postId: number) => {
+  const postToUpdate = posts.find((post) => post.id === postId);
+  if (!postToUpdate) return;
+
+  const updatedLikes = postToUpdate.liked ? postToUpdate.likes - 1 : postToUpdate.likes + 1;
+  const updatedLikedStatus = !postToUpdate.liked;
+
+  const updatedPosts = posts.map((post) =>
+    post.id === postId
+      ? { ...post, likes: updatedLikes, liked: updatedLikedStatus }
+      : post
+  );
+
+  // 1. Optimistically update UI
+  updatePostsEverywhere(updatedPosts);
+
+  // 2. Update localStorage immediately
+  if (typeof window !== "undefined") {
+    localStorage.setItem('posts-with-user', JSON.stringify(updatedPosts));
+  }
+
+  try {
+    // 3. Update likes count in database
+    await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/update/likes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ posts_id: postId, likes: updatedLikes }),
+    });
+
+    // 4. Update user's like status
+    await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/likes`, {
+      method: "POST", 
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        users_id: userId,
+        posts_id: postId,
+        liked: updatedLikedStatus,
+      }),
+    });
+  } catch (error) {
+    console.error("Error updating like count in Xano:", error);
+  }
+};
+
+
   
 
   // Handle Comment Button Click (Opens alert for now, can be modified for UI input)
@@ -226,12 +295,10 @@ const { data: userDetails, error: userQueryError, isLoading: isUserLoading,} = u
                     {post.liked ? (
                     <FaHeart
                       className="cursor-pointer text-red-500"
-                      onClick={() => toggleLike(post.id)}
                     />
                     ) : (
                     <FiHeart
                       className="cursor-pointer hover:text-red-500"
-                      onClick={() => toggleLike(post.id)}
                     />
                     )}
 

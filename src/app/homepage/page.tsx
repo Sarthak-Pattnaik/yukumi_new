@@ -56,52 +56,110 @@ export default function Home() {
       console.error("Error fetching user data:", error);
       throw error;
     }
-  };
 
-  // Fetch user data on load and cache it for better performance
-  const { data: userDetails, isLoading: userLoading, isError: userError } = useQuery({
-    queryKey: ["userDetails", user?.uid],
-    queryFn: () => fetchUserData(user?.uid || ""),
-    enabled: !loading && user !== null,
-    retry: 2
+catch (error) {
+          console.error("Error fetching user anime:", error);
+      }
+};
+
+// First, read cached userDetails from localStorage outside the query
+const cachedUserDetails = typeof window !== "undefined" ? localStorage.getItem(`userDetails_${firebase_uid}`) : null;
+const parsedUserDetails = cachedUserDetails ? JSON.parse(cachedUserDetails) : undefined;
+
+const { data: userDetails, error: userQueryError, isLoading: isUserLoading } = useQuery({
+  queryKey: ["userDetails", firebase_uid],
+  queryFn: async () => {
+    console.log("Running queryFn with uid:", firebase_uid);
+    if (!firebase_uid) return null;
+
+    const freshUserData = await fetchUserData();
+
+    // Save fresh user details to localStorage
+    if (freshUserData) {
+      localStorage.setItem(`userDetails_${firebase_uid}`, JSON.stringify(freshUserData));
+    }
+
+    return freshUserData;
+  },
+  enabled: !!firebase_uid,
+  initialData: parsedUserDetails,  // 👈 show cached data immediately
+  staleTime: 1000,
+  gcTime: 1000 * 60 * 2,
+  retry: false,
+});
+
+
+
+//END FETCHING USER DATA HERE
+    
+const fetchPostsWithUserData = async (): Promise<Post[]> => {
+  console.log("Fetching posts with user data...");
+
+  // 1. Fetch all posts
+  const postRes = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts");
+  const posts: Post[] = await postRes.json();
+
+  // 2. Fetch all posts liked by the current user
+  const likesRes = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/LikedOrNot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ users_id: userId }), 
+  // Use userId from the state
+  });
+  const likesData: { posts_id: number; liked: boolean }[] = await likesRes.json();
+
+  // 3. Create a quick lookup map for liked posts
+  const likedPostsMap = new Map<number, boolean>();
+  likesData.forEach((like) => {
+    if (like.liked) { // Only mark posts where user actually liked
+      likedPostsMap.set(like.posts_id, true);
+    }
   });
 
-  useEffect(() => {
-    if (userDetails) {
-      setUserId(userDetails.id);
+  // 4. Merge liked status into each post
+  const postsWithLiked = posts.map((post) => ({
+    ...post,
+    liked: likedPostsMap.get(post.id) || false, // default to false if not liked
+  }));
+
+  // 5. Update local state
+  setPosts(postsWithLiked);
+
+  return postsWithLiked;
+};
+
+  
+
+  // First, read localStorage outside the query
+const cachedPosts = typeof window !== "undefined" ? localStorage.getItem('posts-with-user') : null;
+const parsedPosts = cachedPosts ? JSON.parse(cachedPosts) as Post[] : undefined;
+
+const { data: postsWithUser, isLoading, isError } = useQuery<Post[], Error>({
+  queryKey: ['posts-with-user'],
+  queryFn: async () => {
+    const freshPosts = await fetchPostsWithUserData();
+
+    // After fetching, update localStorage
+    if (freshPosts) {
+      localStorage.setItem('posts-with-user', JSON.stringify(freshPosts));
     }
-  }, [userDetails]);
 
-  // Fetch posts along with user data
-  const fetchPosts = async (): Promise<Post[]> => {
-    try {
-      const postRes = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/posts");
-      const postsData = await postRes.json();
+    return freshPosts;
+  },
+  initialData: parsedPosts, // 👈 load cached posts immediately
+  staleTime: 1000,          // 👈 stale after 1 second
+  gcTime: 1000 * 60 * 2,
+  retry: 3,
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+});
 
-      const postsWithUserData = await Promise.all(
-        postsData.map(async (post: Post) => {
-          try {
-            const userRes = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${post.users_id}`);
-            const userData = await userRes.json();
-            return {
-              ...post,
-              username: userData.username,
-              profile_pic: userData.profile_pic,
-              liked: false, // Default liked state
-            };
-          } catch (error) {
-            console.error("Error fetching user data for post:", error);
-            return post;
-          }
-        })
-      );
+const updatePostsEverywhere = (updatedPosts: Post[]) => {
+  setPosts(updatedPosts);
+  if (typeof window !== "undefined") {
+    localStorage.setItem('posts-with-user', JSON.stringify(updatedPosts));
+  }
+};
 
-      return postsWithUserData;
-    } catch (error) {
-      console.error("Error fetching posts:", error);
-      return [];
-    }
-  };
 
   const { data: postsData, isLoading: postsLoading, error: postsError } = useQuery({
     queryKey: ["postsWithUserData"],
@@ -109,39 +167,53 @@ export default function Home() {
     staleTime: 1000 * 60,
     cacheTime: 1000 * 60 * 5
   });
+    
+ // Handle Like Button Click
+ const toggleLike = async (postId: number) => {
+  const postToUpdate = posts.find((post) => post.id === postId);
+  if (!postToUpdate) return;
 
-  // Handle Like Button Click
-  const toggleLike = async (postId: number) => {
-    const updatedPosts = posts.map((post) =>
-      post.id === postId
-        ? { ...post, liked: !post.liked, likes: post.liked ? post.likes - 1 : post.likes + 1 }
-        : post
-    );
+  const updatedLikes = postToUpdate.liked ? postToUpdate.likes - 1 : postToUpdate.likes + 1;
+  const updatedLikedStatus = !postToUpdate.liked;
 
-    setPosts(updatedPosts);
+  const updatedPosts = posts.map((post) =>
+    post.id === postId
+      ? { ...post, likes: updatedLikes, liked: updatedLikedStatus }
+      : post
+  );
 
-    try {
-      await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/update/likes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ posts_id: postId }),
-      });
+  // 1. Optimistically update UI
+  updatePostsEverywhere(updatedPosts);
 
-      await fetch("https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/likes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          users_id: userId,
-          posts_id: postId,
-          liked: !posts.find((post) => post.id === postId)?.liked,
-        }),
-      });
-    } catch (error) {
-      console.error("Error updating like count:", error);
-      // Handle error by reverting the optimistic update
-      setPosts(posts);
-    }
-  };
+  // 2. Update localStorage immediately
+  if (typeof window !== "undefined") {
+    localStorage.setItem('posts-with-user', JSON.stringify(updatedPosts));
+  }
+
+  try {
+    // 3. Update likes count in database
+    await fetch("https://x8ki-letl-twmt.n7.xano.io/api:0Q68j1tU/update/likes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ posts_id: postId, likes: updatedLikes }),
+    });
+
+    // 4. Update user's like status
+    await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:eA0dhH6K/likes`, {
+      method: "POST", 
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        users_id: userId,
+        posts_id: postId,
+        liked: updatedLikedStatus,
+      }),
+    });
+  } catch (error) {
+    console.error("Error updating like count in Xano:", error);
+  }
+};
+
+
 
   // Handle Comment Button Click (Redirects to the post detail page)
   const handleCommentClick = (postId: number) => {
@@ -220,9 +292,13 @@ export default function Home() {
                     onClick={() => toggleLike(post.id)}
                   >
                     {post.liked ? (
-                      <FaHeart className="cursor-pointer text-red-500" />
+                    <FaHeart
+                      className="cursor-pointer text-red-500"
+                    />
                     ) : (
-                      <FiHeart className="cursor-pointer hover:text-red-500" />
+                    <FiHeart
+                      className="cursor-pointer hover:text-red-500"
+                    />
                     )}
                     <span>{post.likes}</span>
                   </button>

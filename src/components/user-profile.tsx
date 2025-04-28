@@ -1,104 +1,94 @@
 "use client";
 
-import Image from "next/image";
-import { useState, useEffect } from "react";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
+import { Upload } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
 
 export function UserProfile() {
-  const [avatarUrl, setAvatarUrl] = useState<string>("/placeholder.svg");
-  const [displayName, setDisplayName] = useState<string>("Loading...");
-  const [firebaseUid, setFirebaseUid] = useState<string | null>(null);
-  const [userId, setUserId] = useState<number | null>(null);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string>("Your Display Name");
+  const [editMode, setEditMode] = useState<boolean>(false);
 
-  const { user, loading } = useAuth();
-      const router = useRouter();
-    
-      useEffect(() => {
-        if (!loading) {
-          if (!user) {
-            router.push("/auth/login-page"); // Redirect if not logged in
-          } else {
-            setFirebaseUid(user.uid); // Update firebase_uid when user is set
-            fetchUserData();
-          }
-        }
-      }, [user, loading, router]);
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      alert("Please select an image first.");
+      return;
+    }
 
-      useEffect(() => {
-        if (firebaseUid) {
-          console.log("Fetching User ID for:", firebaseUid);
-          fetchUserData();
-        }
-      }, [firebaseUid]);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "image-upload-1");
+    formData.append("folder", "DisplayPicture");
 
-      useEffect(() => {
-        if (userId) {
-          fetchUserDetails();
-        }
-      }, [userId]);
-
-  const fetchUserData = async () => {
     try {
-      console.log("Fetching User ID for:", firebaseUid);
-
-      // Step 1: Fetch user ID from Xano
-      
-      const response = await fetch(
-        `https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users`, {
-          method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firebase_uid: firebaseUid }),
-        }
-      );
-      //console.log(response);
-      //if (!response.ok) throw new Error(`Failed to fetch user ID. API Response: ${await response.text()}`);
+      const response = await fetch("https://api.cloudinary.com/v1_1/difdc39kr/image/upload", {
+        method: "POST",
+        body: formData,
+      });
 
       const data = await response.json();
-      console.log("User Data Response:", data);
-      setUserId(data);
-     
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${data.error?.message || "Unknown error"}`);
+      }
+      setProfileImage(data.secure_url);
     } catch (error) {
-      console.error("Error fetching user data:", error);
+      console.error("Error uploading image:", error);
     }
   };
-
-  const fetchUserDetails = async () => {
-    try {
-      console.log("hello");
-      console.log("Fetching details for user ID:", userId);
-
-      const response = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${userId}`);
-
-      //if (!response.ok) throw new Error(`Failed to fetch user details. API Response: ${await response.text()}`);
-
-      const userDetails = await response.json();
-      console.log("Final user details:", userDetails);
-
-      setAvatarUrl(userDetails.picture_url || "/placeholder.svg");
-      setDisplayName(userDetails.display_name || "Anonymous");
-    } catch (error) {
-      console.error("Error fetching user details:", error);
-    }
-  };
-
-
 
   return (
-    <div className="flex items-start gap-6 p-6 bg-background/50 rounded-lg">
+    <div className="flex items-center gap-6 p-6">
+      {/* Avatar */}
       <div className="relative">
-        <Image
-          src={avatarUrl}
-          alt="User Avatar"
-          width={120}
-          height={120}
-          className="rounded-full"
-        />
+        <Avatar className="h-24 w-24">
+          <AvatarImage src={profileImage || "https://res.cloudinary.com/difdc39kr/image/upload/v1745763093/placeholder.svg.svg"} />
+          <AvatarFallback>DP</AvatarFallback>
+        </Avatar>
+
+        <label
+          htmlFor="profile-upload"
+          className="absolute bottom-0 right-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#d600db] text-white"
+        >
+          <Upload className="h-3 w-3" />
+          <input
+            id="profile-upload"
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={handleImageUpload}
+          />
+        </label>
       </div>
 
-      <div className="flex-1">
-        <h2 className="text-2xl font-bold">{displayName}</h2>
+      {/* Display Name */}
+      <div className="flex items-center gap-2">
+        {editMode ? (
+          <>
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-48 bg-white text-black rounded px-2 py-1"
+            />
+            <button
+              className="text-sm text-white bg-[#d600db] px-3 py-1 rounded"
+              onClick={() => setEditMode(false)}
+            >
+              Save
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-xl text-white font-semibold">{displayName}</span>
+            <img
+              src="https://res.cloudinary.com/difdc39kr/image/upload/v1745764546/zdj84gi4dhzrxcscn1lp.svg"
+              alt="Edit Pen"
+              className="h-5 w-5 cursor-pointer"
+              onClick={() => setEditMode(true)}
+            />
+          </>
+        )}
       </div>
     </div>
   );

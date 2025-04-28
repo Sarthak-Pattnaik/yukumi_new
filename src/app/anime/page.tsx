@@ -63,6 +63,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [favorites, setFavorites] = useState<FavAnime[]>([]);
+  const [userId, setUserId] = useState<number | null>(null);
   const [userData, setUserData] = useState<UserEntry | null>(null);
   const [debouncedUserData, setDebouncedUserData] = useState(userData);
   const [firebase_uid, setFirebase_uid] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export default function Home() {
   useEffect(() => {
     if (!loading) {
       if (user) {
+        setIsLoggedIn(true);
         setFirebase_uid(user.uid); // Update firebase_uid when user is set
       }
     }
@@ -83,7 +85,7 @@ export default function Home() {
 
   // Debouncing userData
   useEffect(() => {
-    console.log("Setting debouncedUserData:", userData); // Log to verify if userData changes
+   // console.log("Setting debouncedUserData:", userData); // Log to verify if userData changes
     const handler = setTimeout(() => {
       setDebouncedUserData(userData);
     }, 500); // Delays API call by 500ms
@@ -104,9 +106,10 @@ export default function Home() {
           body: JSON.stringify({ firebase_uid: firebase_uid }),
         });
         const data = await response.json();
+        setUserId(data);
         const response2 = await fetch(`https://x8ki-letl-twmt.n7.xano.io/api:hRCl8Tp6/users/${data}`);
         const data2 = await response2.json();
-        console.log("data2", data2);
+        //console.log("data2", data2);
         setUserData(data2);
       } catch (error) {
         console.error("Error fetching user anime:", error);
@@ -118,7 +121,7 @@ export default function Home() {
 
   // Fetch anime details based on debouncedUserData
   const fetchAnimeDetails = async (debouncedUserData: UserEntry) => {
-    console.log('Fetching anime details...', debouncedUserData); // Check if the function is triggered
+    //console.log('Fetching anime details...', debouncedUserData); // Check if the function is triggered
     if (!debouncedUserData?.favourites || debouncedUserData.favourites.length === 0) return [];
 
     try {
@@ -131,7 +134,7 @@ export default function Home() {
         }
       );
       const extractedData = await response.json();
-      console.log("extracted", extractedData);
+      //console.log("extracted", extractedData);
       return extractedData; // Return the data
     } catch (error) {
       console.error("Error fetching favorite anime details:", error);
@@ -143,7 +146,7 @@ export default function Home() {
   const { data: favoriteAnimeList, error: queryError, isLoading } = useQuery({
     queryKey: ["favoriteAnimes", debouncedUserData?.favourites ?? []], 
     queryFn: () => {
-      console.log('Inside queryFn, debouncedUserData:', debouncedUserData); // Add log for debug
+      //console.log('Inside queryFn, debouncedUserData:', debouncedUserData); // Add log for debug
       return debouncedUserData ? fetchAnimeDetails(debouncedUserData) : [];
     },
     enabled: !!debouncedUserData && debouncedUserData.favourites?.length > 0, // Ensure query is enabled only when there are favorites
@@ -215,18 +218,27 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn) {
+      console.log("User is not logged in, skipping fetchUserData.");
+      return;
+    }
     const fetchUserData = async () => {
       try {
-        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/user_anime");
+        const response = await fetch("https://x8ki-letl-twmt.n7.xano.io/api:P5mUuktq/useranime/getScoreStatus", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ users_id: userId }),
+          });
         const userData = await response.json();
         
         const scores: Record<number, number> = {};
         const statuses: Record<number, string> = {};
 
-        userData.forEach((entry: { anime_id: number; score: number; status: string }) => {
-          scores[entry.anime_id] = entry.score;
-          statuses[entry.anime_id] = entry.status;
+        userData.forEach((entry: { animes1_id: number; score: number; status: string }) => {
+          scores[entry.animes1_id] = entry.score;
+          statuses[entry.animes1_id] = entry.status;
         });
 
         setUserScores(scores);
@@ -237,7 +249,14 @@ export default function Home() {
     };
 
     fetchUserData();
-  }, [isLoggedIn]);
+  }, [userId]);
+
+  useEffect(() => {
+    console.log(userId);
+    console.log("Updated userScores:", userScores);
+    console.log("Updated userStatuses:", userStatuses);
+  }, [userScores, userStatuses]);
+  
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -309,15 +328,16 @@ export default function Home() {
             {displayedAnime.map((anime) => (
               <tr key={anime.id} className="border-t border-white/10 hover:bg-white/5">
                 <td className="p-4">
-                  <div className="flex items-center gap-4">
-                    <Image
-                      src={anime.image_url || "/placeholder.svg"}
-                      alt={anime.title}
-                      width={60}
-                      height={80}
-                      className="rounded"
-                    />
-                  </div>
+                <div className="relative w-[60px] h-[80px]">
+  <Image
+    src={anime.image_url || "/placeholder.svg"}
+    alt={anime.title}
+    fill
+    sizes="60px" // 👈 add this
+    className="object-cover rounded"
+  />
+</div>
+
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-2">
